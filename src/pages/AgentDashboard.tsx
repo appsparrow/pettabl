@@ -70,20 +70,25 @@ const AgentDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-accent/5 via-background to-secondary/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-secondary/10 via-background to-accent/5 p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Dog className="h-10 w-10 text-accent animate-tail-wag" />
-            <div>
-              <h1 className="text-3xl font-bold text-accent">
-                Hello, {profile?.name}! 🐾
-              </h1>
-              <p className="text-muted-foreground">Ready to spread some paw-sitivity?</p>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Award className="h-12 w-12 text-secondary animate-paw-bounce" />
+              <div>
+                <div className="text-xs uppercase tracking-wider text-secondary font-semibold mb-1">
+                  🐾 Fur Agent Dashboard
+                </div>
+                <h1 className="text-3xl font-bold">
+                  Hello, {profile?.name}!
+                </h1>
+              </div>
             </div>
+            <p className="text-muted-foreground ml-[60px]">Complete tasks & earn Paw Points</p>
           </div>
-          <Button variant="outline" onClick={handleSignOut}>
+          <Button variant="outline" onClick={handleSignOut} size="sm">
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
