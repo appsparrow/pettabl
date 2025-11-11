@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Check } from 'lucide-react';
+import { Calendar, Check, Utensils, Footprints, Home, Sun, Cloud, Moon, Camera } from 'lucide-react';
 
 interface ScheduleTime {
   id: string;
@@ -35,12 +35,12 @@ const TodayScheduleChecklist = ({
   onCheckActivity,
   onUnmarkActivity
 }: TodayScheduleChecklistProps) => {
-  const getActivityEmoji = (type: string) => {
+  const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'feed': return '🍽️';
-      case 'walk': return '🚶';
-      case 'letout': return '🏠';
-      default: return '⏰';
+      case 'feed': return <Utensils className="h-5 w-5" />;
+      case 'walk': return <Footprints className="h-5 w-5" />;
+      case 'letout': return <Home className="h-5 w-5" />;
+      default: return <Calendar className="h-5 w-5" />;
     }
   };
 
@@ -64,10 +64,10 @@ const TodayScheduleChecklist = ({
 
   const getTimePeriodIcon = (timePeriod: string) => {
     switch (timePeriod) {
-      case 'morning': return '☀️';
-      case 'afternoon': return '🌤️';
-      case 'evening': return '🌙';
-      default: return '⏰';
+      case 'morning': return <Sun className="h-4 w-4" />;
+      case 'afternoon': return <Cloud className="h-4 w-4" />;
+      case 'evening': return <Moon className="h-4 w-4" />;
+      default: return <Calendar className="h-4 w-4" />;
     }
   };
 
@@ -114,7 +114,7 @@ const TodayScheduleChecklist = ({
       <CardContent>
         {scheduleTimes.length === 0 ? (
           <div className="text-center py-8">
-            <div className="text-6xl mb-4">📋</div>
+            <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-300" />
             <p className="text-gray-500">No schedule set yet</p>
             <p className="text-sm text-gray-400 mt-1">Ask your Fur Boss to set up the daily schedule!</p>
           </div>
@@ -147,12 +147,12 @@ const TodayScheduleChecklist = ({
                         >
                           <div className="flex items-center gap-3 flex-1">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                              completed ? 'bg-green-100' : 'bg-gray-100'
+                              completed ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
                             }`}>
                               {completed ? (
-                                <Check className="h-5 w-5 text-green-600" />
+                                <Check className="h-5 w-5" />
                               ) : (
-                                <span className="text-xl">{getActivityEmoji(item.activity_type)}</span>
+                                getActivityIcon(item.activity_type)
                               )}
                             </div>
                             
@@ -162,11 +162,13 @@ const TodayScheduleChecklist = ({
                               </p>
                               {completed && activity && (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <p className="text-xs text-green-600">
-                                    ✓ by {activity.caretaker?.name || 'Agent'} at {formatTime(activity.created_at)}
+                                  <p className="text-xs text-green-600 flex items-center gap-1">
+                                    <Check className="h-3 w-3" /> by {activity.caretaker?.name || 'Agent'} at {formatTime(activity.created_at)}
                                   </p>
                                   {activity.photo_url && (
-                                    <Badge variant="outline" className="text-xs">📷</Badge>
+                                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                                      <Camera className="h-3 w-3" /> Photo
+                                    </Badge>
                                   )}
                                 </div>
                               )}

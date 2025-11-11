@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Loader2, Plus, X } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2, Plus, X, Dog, Cat, Fish, Bird, Rabbit, Origami } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -28,10 +28,11 @@ interface SessionSummary {
 interface CreateSessionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  petId: string;
-  petName: string;
+  petId?: string | null;
+  petName?: string | null;
   onSuccess: () => void;
   session?: SessionSummary;
+  pets?: Array<{ id: string; name: string; photo_url: string | null; pet_type: string | null }>;
 }
 
 interface AgentOption {
@@ -43,12 +44,14 @@ interface AgentOption {
 export const CreateSessionModal = ({
   open,
   onOpenChange,
-  petId,
-  petName,
+  petId: initialPetId,
+  petName: initialPetName,
   onSuccess,
   session,
+  pets = [],
 }: CreateSessionModalProps) => {
   const [loading, setLoading] = useState(false);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(initialPetId || null);
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [notes, setNotes] = useState("");
@@ -59,11 +62,35 @@ export const CreateSessionModal = ({
 
   const isEditMode = Boolean(session);
 
+  const getPetIcon = (petType: string | null) => {
+    const iconClass = "h-6 w-6";
+    switch (petType) {
+      case "dog":
+        return <Dog className={iconClass} />;
+      case "cat":
+        return <Cat className={iconClass} />;
+      case "fish":
+        return <Fish className={iconClass} />;
+      case "bird":
+        return <Bird className={iconClass} />;
+      case "rabbit":
+        return <Rabbit className={iconClass} />;
+      default:
+        return <Origami className={iconClass} />;
+    }
+  };
+
   useEffect(() => {
     if (open) {
       prefillSession();
     }
   }, [open, session]);
+
+  useEffect(() => {
+    if (initialPetId) {
+      setSelectedPetId(initialPetId);
+    }
+  }, [initialPetId]);
 
   const prefillSession = () => {
     if (session) {
@@ -81,6 +108,7 @@ export const CreateSessionModal = ({
       setEndDate(undefined);
       setNotes("");
       setSelectedAgents([]);
+      setSelectedPetId(initialPetId || null);
     }
     setSearchEmail("");
     setSearchResults([]);
@@ -93,10 +121,13 @@ export const CreateSessionModal = ({
     }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { data, error } = await supabase
         .from("profiles")
         .select("id, name, email")
         .eq("role", "fur_agent")
+        .neq("id", user?.id || "") // Don't show current user in agent list
         .ilike("email", `%${searchEmail}%`)
         .limit(5);
 
@@ -119,10 +150,28 @@ export const CreateSessionModal = ({
     return () => clearTimeout(debounce);
   }, [searchEmail]);
 
-  const addAgent = (agent: AgentOption) => {
-    if (!selectedAgents.find((a) => a.id === agent.id)) {
-      setSelectedAgents([...selectedAgents, agent]);
+  const addAgent = async (agent: AgentOption) => {
+    // Prevent self-assignment
+    const { data: { user } } = await supabase.auth.getUser();
+    if (agent.id === user?.id) {
+      toast({
+        title: "Cannot assign yourself",
+        description: "You cannot be the caretaker for your own pet",
+        variant: "destructive",
+      });
+      return;
     }
+    
+    // Check if agent already added
+    if (selectedAgents.find((a) => a.id === agent.id)) {
+      toast({
+        title: "Agent already added",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSelectedAgents([...selectedAgents, agent]);
     setSearchEmail("");
     setSearchResults([]);
   };
@@ -133,6 +182,15 @@ export const CreateSessionModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!selectedPetId) {
+      toast({
+        title: "Select a pet",
+        description: "Please select a pet for this session",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (!startDate || !endDate) {
       toast({
@@ -180,7 +238,7 @@ export const CreateSessionModal = ({
       }
 
       const payload = {
-        pet_id: petId,
+        pet_id: selectedPetId,
         start_date: format(startDate, "yyyy-MM-dd"),
         end_date: format(endDate, "yyyy-MM-dd"),
         notes: notes || null,
@@ -231,9 +289,10 @@ export const CreateSessionModal = ({
         if (agentError) throw agentError;
       }
 
+      const selectedPet = pets.find(p => p.id === selectedPetId);
       toast({
         title: isEditMode ? "Session updated!" : "Session created!",
-        description: `Care session for ${petName} has been ${isEditMode ? "updated" : "scheduled"}.`,
+        description: `Care session for ${selectedPet?.name || initialPetName || 'your pet'} has been ${isEditMode ? "updated" : "scheduled"}.`,
       });
 
       setSearchEmail("");
@@ -260,13 +319,52 @@ export const CreateSessionModal = ({
             {isEditMode ? "Update Care Session" : "Create Care Session 🗓"}
           </DialogTitle>
           <DialogDescription>
-            {isEditMode
-              ? `Adjust timing or agents for ${petName}'s care session.`
-              : `Schedule care dates for ${petName} and assign Fur Agents`}
+            {pets.length > 1 
+              ? "Select a pet and schedule care dates"
+              : isEditMode
+              ? `Adjust timing or agents for ${initialPetName}'s care session.`
+              : `Schedule care dates for ${initialPetName} and assign Fur Agents`}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Pet Selection - Show when multiple pets available */}
+          {pets.length > 1 && !isEditMode && (
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">
+                Select Pet <span className="text-destructive">*</span>
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {pets.map((pet) => (
+                  <button
+                    key={pet.id}
+                    type="button"
+                    onClick={() => setSelectedPetId(pet.id)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-2xl border-2 transition-all text-left",
+                      selectedPetId === pet.id
+                        ? "border-primary bg-primary/10"
+                        : "border-gray-200 hover:border-primary/50"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center",
+                      selectedPetId === pet.id ? "bg-primary/20 text-primary" : "bg-gray-100 text-gray-600"
+                    )}>
+                      {pet.photo_url ? (
+                        <img src={pet.photo_url} alt={pet.name} className="w-full h-full object-cover rounded-full" />
+                      ) : (
+                        getPetIcon(pet.pet_type)
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{pet.name}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Date Range Selector */}
           <div className="space-y-2">
             <Label className="text-sm font-semibold">

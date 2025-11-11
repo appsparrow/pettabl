@@ -5,6 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import { LogOut, Award, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PetAssignmentCard from "@/components/PetAssignmentCard";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { useRole } from "@/contexts/RoleContext";
 import { eachDayOfInterval, format, parseISO, isAfter } from "date-fns";
 
 interface Profile {
@@ -34,6 +36,7 @@ const AgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { activeRole, loading: roleLoading } = useRole();
 
   useEffect(() => {
     checkAuth();
@@ -56,11 +59,6 @@ const AgentDashboard = () => {
 
       if (error) throw error;
 
-      if (profileData.role === "fur_boss") {
-        navigate("/boss-dashboard");
-        return;
-      }
-
       setProfile(profileData);
       await loadAssignments(user.id);
     } catch (error) {
@@ -74,6 +72,13 @@ const AgentDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Role guard: redirect if not in Agent mode
+  useEffect(() => {
+    if (!roleLoading && activeRole && activeRole !== "fur_agent") {
+      navigate("/boss-dashboard");
+    }
+  }, [activeRole, roleLoading, navigate]);
 
   const loadAssignments = async (agentId: string) => {
     try {
@@ -249,6 +254,7 @@ const AgentDashboard = () => {
               </div>
             </div>
             <div className="flex gap-2">
+              <RoleSwitcher />
               <Button 
                 variant="ghost" 
                 size="icon"

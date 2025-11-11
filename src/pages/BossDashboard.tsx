@@ -9,6 +9,8 @@ import { AddPetModal } from "@/components/AddPetModal";
 import { PetCard } from "@/components/PetCard";
 import { SessionCard } from "@/components/SessionCard";
 import { CreateSessionModal } from "@/components/CreateSessionModal";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { useRole } from "@/contexts/RoleContext";
 import { Tables } from "@/integrations/supabase/types";
 
 interface Profile {
@@ -34,6 +36,7 @@ const BossDashboard = () => {
   const [userId, setUserId] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { activeRole, loading: roleLoading } = useRole();
 
   useEffect(() => {
     checkAuth();
@@ -58,11 +61,6 @@ const BossDashboard = () => {
 
       if (error) throw error;
 
-      if (profileData.role !== "fur_boss") {
-        navigate("/agent-dashboard");
-        return;
-      }
-
       setProfile(profileData);
       await fetchPets(user.id);
       await fetchSessions(user.id);
@@ -77,6 +75,13 @@ const BossDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Role guard: redirect if not in Boss mode
+  useEffect(() => {
+    if (!roleLoading && activeRole && activeRole !== "fur_boss") {
+      navigate("/agent-dashboard");
+    }
+  }, [activeRole, roleLoading, navigate]);
 
   const fetchPets = async (furBossId: string) => {
     try {
@@ -145,10 +150,15 @@ const BossDashboard = () => {
       setSelectedPetForSession({ id: pets[0].id, name: pets[0].name });
       setShowCreateSession(true);
     } else {
-      // Show pet selection (for now, just use the first pet)
-      setSelectedPetForSession({ id: pets[0].id, name: pets[0].name });
+      // Show pet selection modal for multiple pets
       setShowCreateSession(true);
+      // Don't pre-select a pet, let user choose in the modal
+      setSelectedPetForSession(null);
     }
+  };
+
+  const handlePetSelected = (petId: string, petName: string) => {
+    setSelectedPetForSession({ id: petId, name: petName });
   };
 
   const handleSignOut = async () => {
@@ -182,6 +192,7 @@ const BossDashboard = () => {
               </div>
             </div>
             <div className="flex gap-2">
+              <RoleSwitcher />
               <Button 
                 variant="ghost" 
                 size="icon"
@@ -320,15 +331,14 @@ const BossDashboard = () => {
       />
 
       {/* Create Session Modal */}
-      {selectedPetForSession && (
-        <CreateSessionModal
-          open={showCreateSession}
-          onOpenChange={setShowCreateSession}
-          petId={selectedPetForSession.id}
-          petName={selectedPetForSession.name}
-          onSuccess={handleSessionCreated}
-        />
-      )}
+      <CreateSessionModal
+        open={showCreateSession}
+        onOpenChange={setShowCreateSession}
+        petId={selectedPetForSession?.id}
+        petName={selectedPetForSession?.name}
+        onSuccess={handleSessionCreated}
+        pets={pets}
+      />
     </div>
   );
 };

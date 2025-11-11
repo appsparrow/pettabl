@@ -61,25 +61,33 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
 
-      // Get user profile to determine role
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .single();
-
       toast({
         title: "Welcome back! 🎉",
         description: "Great to see you again!",
       });
 
-      navigate(profile?.role === "fur_boss" ? "/boss-dashboard" : "/agent-dashboard");
+      // Get stored active role or use primary role
+      const storedRole = localStorage.getItem("activeRole");
+      
+      if (storedRole) {
+        navigate(storedRole === "fur_boss" ? "/boss-dashboard" : "/agent-dashboard");
+      } else {
+        // First time login, use primary role
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
+
+        navigate(profile?.role === "fur_boss" ? "/boss-dashboard" : "/agent-dashboard");
+      }
     } catch (error: any) {
       toast({
         title: "Oops!",
@@ -185,14 +193,14 @@ const Auth = () => {
                       <RadioGroupItem value="fur_boss" id="fur_boss" />
                       <Label htmlFor="fur_boss" className="flex-1 cursor-pointer">
                         <div className="font-semibold">🐕 Fur Boss</div>
-                        <div className="text-sm text-muted-foreground">Pet owner managing care</div>
+                        <div className="text-sm text-muted-foreground">Looking for people to take care of your pets</div>
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
                       <RadioGroupItem value="fur_agent" id="fur_agent" />
                       <Label htmlFor="fur_agent" className="flex-1 cursor-pointer">
                         <div className="font-semibold">🐾 Fur Agent</div>
-                        <div className="text-sm text-muted-foreground">Caretaker helping pets</div>
+                        <div className="text-sm text-muted-foreground">Love to take care of others' pets</div>
                       </Label>
                     </div>
                   </RadioGroup>

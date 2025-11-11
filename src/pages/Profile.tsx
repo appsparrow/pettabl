@@ -7,7 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Camera, Loader2, User, Mail, Phone, MapPin, Edit2, Save, X } from "lucide-react";
+import { ArrowLeft, Camera, Loader2, User, Mail, Phone, MapPin, Edit2, Save, X, Plus } from "lucide-react";
+import { useRole } from "@/contexts/RoleContext";
+import { PetCard } from "@/components/PetCard";
+import { AddPetModal } from "@/components/AddPetModal";
 
 interface Profile {
   id: string;
@@ -31,6 +34,9 @@ const Profile = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pets, setPets] = useState<any[]>([]);
+  const [showAddPet, setShowAddPet] = useState(false);
+  const { activeRole } = useRole();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -67,6 +73,9 @@ const Profile = () => {
         bio: data.bio || "",
       });
       setPhotoPreview(data.photo_url);
+      
+      // Load pets
+      await loadPets(user.id);
     } catch (error) {
       console.error("Error loading profile:", error);
       toast({
@@ -76,6 +85,19 @@ const Profile = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPets = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from("pets")
+        .select("*")
+        .eq("fur_boss_id", userId)
+        .order("created_at", { ascending: false });
+      setPets(data || []);
+    } catch (error) {
+      console.error("Error loading pets:", error);
     }
   };
 
@@ -384,9 +406,54 @@ const Profile = () => {
                 </Button>
               </div>
             )}
+
+            {/* My Pets Section - Only show if user owns pets OR is in Boss mode */}
+            {!editing && (activeRole === "fur_boss" || pets.length > 0) && (
+              <div className="space-y-4 pt-6 border-t mt-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">My Pets</h3>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowAddPet(true)}
+                    className="rounded-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Pet
+                  </Button>
+                </div>
+                
+                {pets.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    No pets yet. Add your first pet to get started!
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {pets.map((pet) => (
+                      <PetCard
+                        key={pet.id}
+                        pet={pet}
+                        onClick={() => navigate(`/pet/${pet.id}`)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Pet Modal */}
+      <AddPetModal
+        open={showAddPet}
+        onOpenChange={setShowAddPet}
+        onSuccess={() => {
+          if (profile) {
+            loadPets(profile.id);
+          }
+          setShowAddPet(false);
+        }}
+      />
     </div>
   );
 };
