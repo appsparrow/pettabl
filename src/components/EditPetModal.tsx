@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, Loader2, X, Dog, Cat, Fish, Bird, Rabbit, Origami } from "lucide-react";
+import { Camera, Loader2, X, Dog, Cat, Fish, Bird, Rabbit, Origami, Turtle, Rat } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
 interface EditPetModalProps {
@@ -39,8 +39,8 @@ export const EditPetModal = ({ open, onOpenChange, pet, onSuccess }: EditPetModa
     { value: "fish", label: "Fish", icon: Fish },
     { value: "bird", label: "Bird", icon: Bird },
     { value: "rabbit", label: "Rabbit", icon: Rabbit },
-    { value: "turtle", label: "Turtle", icon: Origami },
-    { value: "hamster", label: "Hamster", icon: Origami },
+    { value: "turtle", label: "Turtle", icon: Turtle },
+    { value: "hamster", label: "Hamster", icon: Rat },
     { value: "other", label: "Other", icon: Origami },
   ];
 

@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar as CalendarIcon, Loader2, Plus, X, Dog, Cat, Fish, Bird, Rabbit, Origami } from "lucide-react";
+import { Calendar as CalendarIcon, Loader2, Plus, X, Dog, Cat, Fish, Bird, Rabbit, Origami, Turtle, Rat } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -75,6 +75,10 @@ export const CreateSessionModal = ({
         return <Bird className={iconClass} />;
       case "rabbit":
         return <Rabbit className={iconClass} />;
+      case "turtle":
+        return <Turtle className={iconClass} />;
+      case "hamster":
+        return <Rat className={iconClass} />;
       default:
         return <Origami className={iconClass} />;
     }

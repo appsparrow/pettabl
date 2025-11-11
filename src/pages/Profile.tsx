@@ -407,8 +407,8 @@ const Profile = () => {
               </div>
             )}
 
-            {/* My Pets Section - Only show if user owns pets OR is in Boss mode */}
-            {!editing && (activeRole === "fur_boss" || pets.length > 0) && (
+            {/* My Pets Section - Show for all users */}
+            {!editing && (
               <div className="space-y-4 pt-6 border-t mt-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">My Pets</h3>
@@ -423,9 +423,16 @@ const Profile = () => {
                 </div>
                 
                 {pets.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    No pets yet. Add your first pet to get started!
-                  </p>
+                  <div className="text-center py-6">
+                    <p className="text-muted-foreground mb-3">
+                      No pets yet. Add your first pet to get started!
+                    </p>
+                    {profile?.role === "fur_agent" && (
+                      <p className="text-xs text-muted-foreground">
+                        💡 Adding a pet will allow you to switch between Agent and Boss modes
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {pets.map((pet) => (
@@ -444,16 +451,17 @@ const Profile = () => {
       </div>
 
       {/* Add Pet Modal */}
-      <AddPetModal
-        open={showAddPet}
-        onOpenChange={setShowAddPet}
-        onSuccess={() => {
-          if (profile) {
+      {profile && (
+        <AddPetModal
+          open={showAddPet}
+          onOpenChange={setShowAddPet}
+          userId={profile.id}
+          onSuccess={() => {
             loadPets(profile.id);
-          }
-          setShowAddPet(false);
-        }}
-      />
+            setShowAddPet(false);
+          }}
+        />
+      )}
     </div>
   );
 };

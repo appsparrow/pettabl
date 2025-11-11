@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Dog, Cat, Fish, Bird, Rabbit, Origami, Calendar, Heart } from "lucide-react";
+import { Dog, Cat, Fish, Bird, Rabbit, Origami, Calendar, Heart, Turtle, Rat } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
 interface PetCardProps {
@@ -22,7 +22,9 @@ export const PetCard = ({ pet, onClick }: PetCardProps) => {
       case 'rabbit':
         return <Rabbit className={iconClass} />;
       case 'turtle':
+        return <Turtle className={iconClass} />;
       case 'hamster':
+        return <Rat className={iconClass} />;
       case 'other':
         return <Origami className={iconClass} />;
       default:

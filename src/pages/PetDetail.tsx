@@ -12,6 +12,8 @@ import {
   Bird,
   Rabbit,
   Origami,
+  Turtle,
+  Rat,
   Calendar,
   Heart,
   Plus,
@@ -233,7 +235,9 @@ const PetDetail = () => {
       case 'rabbit':
         return <Rabbit className={iconClass} />;
       case 'turtle':
+        return <Turtle className={iconClass} />;
       case 'hamster':
+        return <Rat className={iconClass} />;
       case 'other':
         return <Origami className={iconClass} />;
       default:

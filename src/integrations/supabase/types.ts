@@ -293,6 +293,7 @@ export type Database = {
           id: string
           medical_info: string | null
           name: string
+          pet_type: string | null
           photo_url: string | null
           updated_at: string
           vet_contact: string | null
@@ -306,6 +307,7 @@ export type Database = {
           id?: string
           medical_info?: string | null
           name: string
+          pet_type?: string | null
           photo_url?: string | null
           updated_at?: string
           vet_contact?: string | null
@@ -319,6 +321,7 @@ export type Database = {
           id?: string
           medical_info?: string | null
           name?: string
+          pet_type?: string | null
           photo_url?: string | null
           updated_at?: string
           vet_contact?: string | null
@@ -335,32 +338,44 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address: string | null
           avatar_url: string | null
+          bio: string | null
           created_at: string
           email: string
           id: string
           name: string
           paw_points: number | null
+          phone: string | null
+          photo_url: string | null
           role: Database["public"]["Enums"]["app_role"]
           updated_at: string
         }
         Insert: {
+          address?: string | null
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           email: string
           id: string
           name: string
           paw_points?: number | null
+          phone?: string | null
+          photo_url?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
         }
         Update: {
+          address?: string | null
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           email?: string
           id?: string
           name?: string
           paw_points?: number | null
+          phone?: string | null
+          photo_url?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
         }
