@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,27 +7,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Loader2, X, Dog, Cat, Fish, Bird, Rabbit, Origami } from "lucide-react";
+import { Tables } from "@/integrations/supabase/types";
 
-interface AddPetModalProps {
+interface EditPetModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  pet: Tables<"pets">;
   onSuccess: () => void;
-  userId: string;
 }
 
-export const AddPetModal = ({ open, onOpenChange, onSuccess, userId }: AddPetModalProps) => {
+export const EditPetModal = ({ open, onOpenChange, pet, onSuccess }: EditPetModalProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    pet_type: "",
-    breed: "",
-    age: "",
-    medical_info: "",
-    vet_contact: "",
-    food_preferences: "",
+    name: pet.name,
+    pet_type: pet.pet_type || "",
+    breed: pet.breed || "",
+    age: pet.age?.toString() || "",
+    medical_info: pet.medical_info || "",
+    vet_contact: pet.vet_contact || "",
+    food_preferences: pet.food_preferences || "",
   });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(pet.photo_url);
+  const [photoChanged, setPhotoChanged] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -42,11 +44,30 @@ export const AddPetModal = ({ open, onOpenChange, onSuccess, userId }: AddPetMod
     { value: "other", label: "Other", icon: Origami },
   ];
 
+  useEffect(() => {
+    if (open) {
+      // Reset form when modal opens
+      setFormData({
+        name: pet.name,
+        pet_type: pet.pet_type || "",
+        breed: pet.breed || "",
+        age: pet.age?.toString() || "",
+        medical_info: pet.medical_info || "",
+        vet_contact: pet.vet_contact || "",
+        food_preferences: pet.food_preferences || "",
+      });
+      setPhotoPreview(pet.photo_url);
+      setPhotoFile(null);
+      setPhotoChanged(false);
+    }
+  }, [open, pet]);
+
   const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setPhotoFile(file);
+    setPhotoChanged(true);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -55,33 +76,16 @@ export const AddPetModal = ({ open, onOpenChange, onSuccess, userId }: AddPetMod
     reader.readAsDataURL(file);
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      pet_type: "",
-      breed: "",
-      age: "",
-      medical_info: "",
-      vet_contact: "",
-      food_preferences: "",
-    });
-    setPhotoFile(null);
-    setPhotoPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      let photoUrl: string | null = null;
+      let photoUrl: string | null = pet.photo_url;
 
-      if (photoFile) {
+      if (photoChanged && photoFile) {
         const fileExt = photoFile.name.split(".").pop();
-        const fileName = `${userId}_${Date.now()}.${fileExt}`;
+        const fileName = `${pet.fur_boss_id}_${Date.now()}.${fileExt}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("pet-photos")
@@ -96,33 +100,34 @@ export const AddPetModal = ({ open, onOpenChange, onSuccess, userId }: AddPetMod
         photoUrl = publicUrl;
       }
 
-      const { error } = await supabase.from("pets").insert({
-        fur_boss_id: userId,
-        name: formData.name,
-        pet_type: formData.pet_type || null,
-        breed: formData.breed || null,
-        age: formData.age ? parseInt(formData.age) : null,
-        medical_info: formData.medical_info || null,
-        vet_contact: formData.vet_contact || null,
-        food_preferences: formData.food_preferences || null,
-        photo_url: photoUrl,
-      });
+      const { error } = await supabase
+        .from("pets")
+        .update({
+          name: formData.name,
+          pet_type: formData.pet_type || null,
+          breed: formData.breed || null,
+          age: formData.age ? parseInt(formData.age) : null,
+          medical_info: formData.medical_info || null,
+          vet_contact: formData.vet_contact || null,
+          food_preferences: formData.food_preferences || null,
+          photo_url: photoUrl,
+        })
+        .eq("id", pet.id);
 
       if (error) throw error;
 
       toast({
         title: "Success! 🐾",
-        description: `${formData.name} has been added to your pack!`,
+        description: `${formData.name}'s profile has been updated!`,
       });
 
-      resetForm();
       onSuccess();
       onOpenChange(false);
     } catch (error) {
       console.error("Error:", error);
       toast({
         title: "Error",
-        description: "Failed to add pet. Please try again.",
+        description: "Failed to update pet profile. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -135,55 +140,52 @@ export const AddPetModal = ({ open, onOpenChange, onSuccess, userId }: AddPetMod
       <DialogContent className="max-w-md rounded-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Add Your Pet 🐕
+            Edit {pet.name}'s Profile
           </DialogTitle>
           <DialogDescription>
-            Tell us about your furry friend so we can take great care of them!
+            Update your pet's information and photo
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* Pet Photo Placeholder */}
-        <div className="flex justify-center">
-          <div className="relative">
-            <button
-              type="button"
-              className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {photoPreview ? (
-                <img
-                  src={photoPreview}
-                  alt="Pet preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Camera className="h-8 w-8 text-primary" />
-              )}
-            </button>
-            {photoPreview && (
+          {/* Pet Photo */}
+          <div className="flex justify-center">
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => {
-                  setPhotoFile(null);
-                  setPhotoPreview(null);
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                }}
-                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center"
+                className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden"
+                onClick={() => fileInputRef.current?.click()}
               >
-                <X className="h-3 w-3" />
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Pet" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="h-8 w-8 text-primary" />
+                )}
               </button>
-            )}
+              {photoPreview && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoFile(null);
+                    setPhotoPreview(null);
+                    setPhotoChanged(true);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handlePhotoChange}
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoChange}
+          />
 
           {/* Pet Name */}
           <div className="space-y-2">
@@ -306,10 +308,10 @@ export const AddPetModal = ({ open, onOpenChange, onSuccess, userId }: AddPetMod
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Adding Pet...
+                Updating Profile...
               </>
             ) : (
-              "Add Pet 🐾"
+              "Save Changes 🐾"
             )}
           </Button>
         </form>

@@ -7,13 +7,94 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          caretaker_id: string
+          created_at: string
+          date: string
+          id: string
+          notes: string | null
+          pet_id: string
+          photo_url: string | null
+          session_id: string
+          time_period: Database["public"]["Enums"]["time_period"]
+        }
+        Insert: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          caretaker_id: string
+          created_at?: string
+          date: string
+          id?: string
+          notes?: string | null
+          pet_id: string
+          photo_url?: string | null
+          session_id: string
+          time_period: Database["public"]["Enums"]["time_period"]
+        }
+        Update: {
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          caretaker_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          notes?: string | null
+          pet_id?: string
+          photo_url?: string | null
+          session_id?: string
+          time_period?: Database["public"]["Enums"]["time_period"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_caretaker_id_fkey"
+            columns: ["caretaker_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       care_logs: {
         Row: {
           care_task_id: string
@@ -285,6 +366,86 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_times: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          created_at: string
+          id: string
+          schedule_id: string
+          time_period: Database["public"]["Enums"]["time_period"]
+        }
+        Insert: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          created_at?: string
+          id?: string
+          schedule_id: string
+          time_period: Database["public"]["Enums"]["time_period"]
+        }
+        Update: {
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          created_at?: string
+          id?: string
+          schedule_id?: string
+          time_period?: Database["public"]["Enums"]["time_period"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_times_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedules: {
+        Row: {
+          created_at: string
+          feeding_instruction: string | null
+          id: string
+          letout_instruction: string | null
+          pet_id: string
+          session_id: string | null
+          updated_at: string
+          walking_instruction: string | null
+        }
+        Insert: {
+          created_at?: string
+          feeding_instruction?: string | null
+          id?: string
+          letout_instruction?: string | null
+          pet_id: string
+          session_id?: string | null
+          updated_at?: string
+          walking_instruction?: string | null
+        }
+        Update: {
+          created_at?: string
+          feeding_instruction?: string | null
+          id?: string
+          letout_instruction?: string | null
+          pet_id?: string
+          session_id?: string | null
+          updated_at?: string
+          walking_instruction?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedules_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedules_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_agents: {
         Row: {
           created_at: string
@@ -380,12 +541,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_pet_agent: {
+        Args: { pet_uuid: string; user_uuid: string }
+        Returns: boolean
+      }
+      is_session_agent: {
+        Args: { session_uuid: string; user_uuid: string }
+        Returns: boolean
+      }
+      is_session_owner: {
+        Args: { session_uuid: string; user_uuid: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      activity_type: "feed" | "walk" | "letout"
       app_role: "fur_boss" | "fur_agent" | "super_admin"
       session_status: "planned" | "active" | "completed"
       task_type: "feed" | "walk" | "play" | "medication" | "groom" | "other"
+      time_period: "morning" | "afternoon" | "evening"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -511,11 +685,17 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
+      activity_type: ["feed", "walk", "letout"],
       app_role: ["fur_boss", "fur_agent", "super_admin"],
       session_status: ["planned", "active", "completed"],
       task_type: ["feed", "walk", "play", "medication", "groom", "other"],
+      time_period: ["morning", "afternoon", "evening"],
     },
   },
 } as const
+

@@ -7,6 +7,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   Dog,
+  Cat,
+  Fish,
+  Bird,
+  Rabbit,
+  Origami,
   Calendar,
   Heart,
   Plus,
@@ -16,10 +21,23 @@ import {
   NotebookPen,
   PawPrint,
   Edit,
+  Trash2,
 } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 import { CreateSessionModal } from "@/components/CreateSessionModal";
-import { EditCarePlanModal } from "@/components/EditCarePlanModal";
+import SimpleScheduleEditor from "@/components/SimpleScheduleEditor";
+import { ActivityLog } from "@/components/ActivityLog";
+import { EditPetModal } from "@/components/EditPetModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SessionWithAgents extends Tables<"sessions"> {
   session_agents: Array<{
@@ -28,39 +46,36 @@ interface SessionWithAgents extends Tables<"sessions"> {
   }>;
 }
 
-interface PetWithDetails extends Tables<"pets"> {
-  sessions: SessionWithAgents[];
-  pet_care_plans: Array<{
-    meal_plan: any;
-    daily_frequency: number | null;
-    feeding_notes: string | null;
-    habits: any;
-    updated_at: string;
-  }>;
+interface Activity {
+  id: string;
+  activity_type: 'feed' | 'walk' | 'letout';
+  time_period: 'morning' | 'afternoon' | 'evening';
+  date: string;
+  photo_url?: string | null;
+  notes?: string | null;
+  created_at: string;
+  caretaker?: {
+    name: string;
+    email: string;
+  };
 }
 
-type MealPlan = Array<{
-  label?: string;
-  time_period?: string;
-  quantity?: string;
-  food_type?: string;
-  notes?: string;
-}>;
-
-type HabitPlan = Array<{
-  title?: string;
-  notes?: string;
-}>;
+interface PetWithDetails extends Tables<"pets"> {
+  sessions: SessionWithAgents[];
+}
 
 const PetDetail = () => {
   const { petId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pet, setPet] = useState<PetWithDetails | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateSession, setShowCreateSession] = useState(false);
   const [sessionToEdit, setSessionToEdit] = useState<SessionWithAgents | null>(null);
-  const [showCarePlanModal, setShowCarePlanModal] = useState(false);
+  const [showEditPet, setShowEditPet] = useState(false);
+  const [showDeletePet, setShowDeletePet] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (petId) {
@@ -70,7 +85,7 @@ const PetDetail = () => {
 
   const fetchPetDetails = async () => {
     try {
-      const { data: petData, error: petError } = await supabase
+      const { data: petData, error: petError} = await supabase
         .from("pets")
         .select(
           `
@@ -81,13 +96,6 @@ const PetDetail = () => {
               fur_agent_id,
               profiles (name, email)
             )
-          ),
-          pet_care_plans (
-            meal_plan,
-            daily_frequency,
-            feeding_notes,
-            habits,
-            updated_at
           )
         `
         )
@@ -97,6 +105,26 @@ const PetDetail = () => {
       if (petError) throw petError;
 
       setPet(petData as PetWithDetails);
+
+      // Fetch all activities for this pet
+      const { data: activitiesData, error: activitiesError } = await supabase
+        .from("activities")
+        .select(`
+          *,
+          caretaker:profiles!activities_caretaker_id_fkey (
+            name,
+            email
+          )
+        `)
+        .eq("pet_id", petId)
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (activitiesError) {
+        console.error("Error fetching activities:", activitiesError);
+      } else {
+        setActivities(activitiesData as Activity[] || []);
+      }
     } catch (error) {
       console.error("Error:", error);
       toast({
@@ -110,9 +138,6 @@ const PetDetail = () => {
     }
   };
 
-  const carePlan = pet?.pet_care_plans?.[0] ?? null;
-  const mealPlan: MealPlan = Array.isArray(carePlan?.meal_plan) ? (carePlan?.meal_plan as MealPlan) : [];
-  const habits: HabitPlan = Array.isArray(carePlan?.habits) ? (carePlan?.habits as HabitPlan) : [];
 
   if (loading) {
     return (
@@ -141,6 +166,81 @@ const PetDetail = () => {
     }
   };
 
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      const { error } = await supabase
+        .from("sessions")
+        .delete()
+        .eq("id", sessionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Session deleted",
+        description: "The care session has been removed.",
+      });
+
+      fetchPetDetails();
+      setSessionToDelete(null);
+    } catch (error) {
+      console.error("Error deleting session:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete session. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeletePet = async () => {
+    if (!pet) return;
+
+    try {
+      const { error } = await supabase
+        .from("pets")
+        .delete()
+        .eq("id", pet.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Pet removed",
+        description: `${pet.name} has been removed from your pets.`,
+      });
+
+      navigate("/boss-dashboard");
+    } catch (error) {
+      console.error("Error deleting pet:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete pet. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getPetIcon = () => {
+    const iconClass = "h-20 w-20 text-white";
+    switch (pet?.pet_type) {
+      case 'dog':
+        return <Dog className={iconClass} />;
+      case 'cat':
+        return <Cat className={iconClass} />;
+      case 'fish':
+        return <Fish className={iconClass} />;
+      case 'bird':
+        return <Bird className={iconClass} />;
+      case 'rabbit':
+        return <Rabbit className={iconClass} />;
+      case 'turtle':
+      case 'hamster':
+      case 'other':
+        return <Origami className={iconClass} />;
+      default:
+        return <Dog className={iconClass} />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header with Pet Photo */}
@@ -153,7 +253,7 @@ const PetDetail = () => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <Dog className="h-32 w-32 text-white/50" />
+            getPetIcon()
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/50" />
 
@@ -166,6 +266,26 @@ const PetDetail = () => {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
+
+          {/* Edit & Delete Buttons */}
+          <div className="absolute top-4 right-4 flex gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowEditPet(true)}
+              className="text-white bg-white/20 backdrop-blur-sm hover:bg-white/30 rounded-full"
+            >
+              <Edit className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowDeletePet(true)}
+              className="text-white bg-destructive/80 backdrop-blur-sm hover:bg-destructive rounded-full"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Pet Name Card */}
@@ -243,98 +363,12 @@ const PetDetail = () => {
           )}
         </div>
 
-        {/* Care Plan Section */}
+        {/* Daily Schedule Section */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">Care Plan</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full"
-              onClick={() => setShowCarePlanModal(true)}
-            >
-              <Edit className="h-4 w-4 mr-1" />
-              Update Plan
-            </Button>
-          </div>
-          <Card className="rounded-3xl border-0 shadow-lg">
-            <CardContent className="space-y-4 py-6">
-              {carePlan ? (
-                <>
-                  <div className="flex items-center justify-between bg-muted/60 rounded-2xl px-4 py-3">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Daily visits / feedings</p>
-                      <p className="text-lg font-semibold">{carePlan.daily_frequency ?? "—"}</p>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Updated {new Date(carePlan.updated_at).toLocaleDateString()}
-                    </div>
-                  </div>
-
-                  {mealPlan.length > 0 ? (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Meals</h3>
-                      <div className="space-y-3">
-                        {mealPlan.map((meal, index) => (
-                          <div key={index} className="rounded-2xl border border-muted/60 px-4 py-3">
-                            <p className="font-semibold flex items-center gap-2">
-                              <UtensilsCrossed className="h-4 w-4 text-primary" />
-                              {meal.label || meal.time_period || "Meal"}
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {meal.quantity ? `${meal.quantity}` : "Quantity not set"}
-                              {meal.food_type ? ` • ${meal.food_type}` : ""}
-                            </p>
-                            {meal.notes && (
-                              <p className="text-xs text-muted-foreground/80 mt-2 whitespace-pre-wrap">
-                                {meal.notes}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No meals configured yet.</p>
-                  )}
-
-                  {carePlan.feeding_notes && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Notes</h3>
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-1">
-                        {carePlan.feeding_notes}
-                      </p>
-                    </div>
-                  )}
-
-                  {habits.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Habits & Routines</h3>
-                      <div className="space-y-2 mt-2">
-                        {habits.map((habit, index) => (
-                          <div key={index} className="flex items-start gap-3">
-                            <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center">
-                              <PawPrint className="h-4 w-4 text-accent" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">{habit.title || "Habit"}</p>
-                              {habit.notes && (
-                                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{habit.notes}</p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground">
-                  No care plan yet. Add feeding instructions, portions, and routines so every Fur Agent follows the same playbook.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <SimpleScheduleEditor 
+            petId={pet.id}
+            onSaved={fetchPetDetails}
+          />
         </div>
 
         {/* Care Sessions Section */}
@@ -390,14 +424,24 @@ const PetDetail = () => {
                           </div>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="rounded-full text-secondary"
-                        onClick={() => handleEditSession(session)}
-                      >
-                        Manage
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full text-secondary"
+                          onClick={() => handleEditSession(session)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-full text-destructive"
+                          onClick={() => setSessionToDelete(session.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -474,6 +518,17 @@ const PetDetail = () => {
             </Card>
           )}
         </div>
+
+        {/* Activity Log Section */}
+        <div className="pt-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Activity Log</h2>
+            <span className="text-sm text-muted-foreground">
+              {activities.length} {activities.length === 1 ? "activity" : "activities"}
+            </span>
+          </div>
+          <ActivityLog activities={activities} />
+        </div>
       </div>
 
       {/* Create / Edit Session Modal */}
@@ -486,14 +541,56 @@ const PetDetail = () => {
         session={sessionToEdit || undefined}
       />
 
-      {/* Edit Care Plan Modal */}
-      <EditCarePlanModal
-        open={showCarePlanModal}
-        onOpenChange={setShowCarePlanModal}
-        petId={pet.id}
-        petName={pet.name}
-        onSave={fetchPetDetails}
+      {/* Edit Pet Modal */}
+      <EditPetModal
+        open={showEditPet}
+        onOpenChange={setShowEditPet}
+        pet={pet}
+        onSuccess={fetchPetDetails}
       />
+
+      {/* Delete Pet Confirmation */}
+      <AlertDialog open={showDeletePet} onOpenChange={setShowDeletePet}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {pet.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete {pet.name} and all associated sessions and activities. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePet}
+              className="rounded-full bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Session Confirmation */}
+      <AlertDialog open={!!sessionToDelete} onOpenChange={() => setSessionToDelete(null)}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this care session and all associated activities. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => sessionToDelete && handleDeleteSession(sessionToDelete)}
+              className="rounded-full bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };

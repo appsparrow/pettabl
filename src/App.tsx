@@ -7,7 +7,9 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import BossDashboard from "./pages/BossDashboard";
 import AgentDashboard from "./pages/AgentDashboard";
+import AgentPetDetail from "./pages/AgentPetDetail";
 import PetDetail from "./pages/PetDetail";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,7 +25,9 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/boss-dashboard" element={<BossDashboard />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          <Route path="/agent/pet/:sessionId" element={<AgentPetDetail />} />
           <Route path="/pet/:petId" element={<PetDetail />} />
+          <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

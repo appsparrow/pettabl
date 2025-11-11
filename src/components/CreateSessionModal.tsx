@@ -158,7 +158,26 @@ export const CreateSessionModal = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const computedStatus = session?.status ?? (endDate < new Date() ? "completed" : "planned");
+      // Determine status based on dates
+      let computedStatus: "planned" | "active" | "completed";
+      if (session?.status) {
+        computedStatus = session.status;
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(0, 0, 0, 0);
+        
+        if (end < today) {
+          computedStatus = "completed";
+        } else if (start <= today && end >= today) {
+          computedStatus = "active";
+        } else {
+          computedStatus = "planned";
+        }
+      }
 
       const payload = {
         pet_id: petId,
@@ -248,63 +267,78 @@ export const CreateSessionModal = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* Start Date */}
+          {/* Date Range Selector */}
           <div className="space-y-2">
             <Label className="text-sm font-semibold">
-              Start Date <span className="text-destructive">*</span>
+              Care Period <span className="text-destructive">*</span>
             </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal rounded-2xl border-2",
-                    !startDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {startDate ? format(startDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 rounded-2xl">
-                <Calendar
-                  mode="single"
-                  selected={startDate}
-                  onSelect={setStartDate}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Start Date */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal rounded-2xl border-2",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <div className="flex flex-col items-start w-full">
+                      <span className="text-xs text-muted-foreground mb-0.5">From</span>
+                      <span className="font-semibold">
+                        {startDate ? format(startDate, "MMM d, yyyy") : "Select date"}
+                      </span>
+                    </div>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-2xl">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      // Auto-advance to end date if not set
+                      if (date && !endDate) {
+                        // Optionally set a default end date (e.g., 7 days later)
+                        const defaultEnd = new Date(date);
+                        defaultEnd.setDate(defaultEnd.getDate() + 7);
+                        setEndDate(defaultEnd);
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
 
-          {/* End Date */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">
-              End Date <span className="text-destructive">*</span>
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal rounded-2xl border-2",
-                    !endDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {endDate ? format(endDate, "PPP") : "Pick a date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 rounded-2xl">
-                <Calendar
-                  mode="single"
-                  selected={endDate}
-                  onSelect={setEndDate}
-                  initialFocus
-                  disabled={(date) => (startDate ? date < startDate : false)}
-                />
-              </PopoverContent>
-            </Popover>
+              {/* End Date */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal rounded-2xl border-2",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <div className="flex flex-col items-start w-full">
+                      <span className="text-xs text-muted-foreground mb-0.5">To</span>
+                      <span className="font-semibold">
+                        {endDate ? format(endDate, "MMM d, yyyy") : "Select date"}
+                      </span>
+                    </div>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-2xl">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                    disabled={(date) => (startDate ? date < startDate : false)}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           {/* Session Notes */}

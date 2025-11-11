@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Dog, Calendar, Heart } from "lucide-react";
+import { Dog, Cat, Fish, Bird, Rabbit, Origami, Calendar, Heart } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 
 interface PetCardProps {
@@ -8,6 +8,28 @@ interface PetCardProps {
 }
 
 export const PetCard = ({ pet, onClick }: PetCardProps) => {
+  const getPetIcon = () => {
+    const iconClass = "h-16 w-16 text-primary/40";
+    switch (pet.pet_type) {
+      case 'dog':
+        return <Dog className={iconClass} />;
+      case 'cat':
+        return <Cat className={iconClass} />;
+      case 'fish':
+        return <Fish className={iconClass} />;
+      case 'bird':
+        return <Bird className={iconClass} />;
+      case 'rabbit':
+        return <Rabbit className={iconClass} />;
+      case 'turtle':
+      case 'hamster':
+      case 'other':
+        return <Origami className={iconClass} />;
+      default:
+        return <Dog className={iconClass} />;
+    }
+  };
+
   return (
     <Card
       onClick={onClick}
@@ -23,7 +45,7 @@ export const PetCard = ({ pet, onClick }: PetCardProps) => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <Dog className="h-16 w-16 text-primary/40" />
+            getPetIcon()
           )}
           {/* Floating Heart Badge */}
           <div className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-lg">
