@@ -1,0 +1,401 @@
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Calendar as CalendarIcon, Loader2, Plus, X } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
+interface SessionAgentInfo {
+  fur_agent_id: string;
+  profiles?: { name: string; email: string };
+}
+
+interface SessionSummary {
+  id: string;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+  session_agents: SessionAgentInfo[];
+}
+
+interface CreateSessionModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  petId: string;
+  petName: string;
+  onSuccess: () => void;
+  session?: SessionSummary;
+}
+
+interface AgentOption {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export const CreateSessionModal = ({
+  open,
+  onOpenChange,
+  petId,
+  petName,
+  onSuccess,
+  session,
+}: CreateSessionModalProps) => {
+  const [loading, setLoading] = useState(false);
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [notes, setNotes] = useState("");
+  const [searchEmail, setSearchEmail] = useState("");
+  const [selectedAgents, setSelectedAgents] = useState<AgentOption[]>([]);
+  const [searchResults, setSearchResults] = useState<AgentOption[]>([]);
+  const { toast } = useToast();
+
+  const isEditMode = Boolean(session);
+
+  useEffect(() => {
+    if (open) {
+      prefillSession();
+    }
+  }, [open, session]);
+
+  const prefillSession = () => {
+    if (session) {
+      setStartDate(new Date(session.start_date));
+      setEndDate(new Date(session.end_date));
+      setNotes(session.notes ?? "");
+      const existingAgents = session.session_agents.map((agent) => ({
+        id: agent.fur_agent_id,
+        name: agent.profiles?.name ?? "Agent",
+        email: agent.profiles?.email ?? "",
+      }));
+      setSelectedAgents(existingAgents);
+    } else {
+      setStartDate(undefined);
+      setEndDate(undefined);
+      setNotes("");
+      setSelectedAgents([]);
+    }
+    setSearchEmail("");
+    setSearchResults([]);
+  };
+
+  const searchAgents = async () => {
+    if (!searchEmail || searchEmail.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .eq("role", "fur_agent")
+        .ilike("email", `%${searchEmail}%`)
+        .limit(5);
+
+      if (error) throw error;
+      setSearchResults((data || []).map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        email: agent.email,
+      })));
+    } catch (error) {
+      console.error("Error searching agents:", error);
+    }
+  };
+
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      searchAgents();
+    }, 300);
+
+    return () => clearTimeout(debounce);
+  }, [searchEmail]);
+
+  const addAgent = (agent: AgentOption) => {
+    if (!selectedAgents.find((a) => a.id === agent.id)) {
+      setSelectedAgents([...selectedAgents, agent]);
+    }
+    setSearchEmail("");
+    setSearchResults([]);
+  };
+
+  const removeAgent = (agentId: string) => {
+    setSelectedAgents(selectedAgents.filter((a) => a.id !== agentId));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!startDate || !endDate) {
+      toast({
+        title: "Missing dates",
+        description: "Please select start and end dates",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (endDate < startDate) {
+      toast({
+        title: "Invalid dates",
+        description: "End date must be after start date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      const computedStatus = session?.status ?? (endDate < new Date() ? "completed" : "planned");
+
+      const payload = {
+        pet_id: petId,
+        start_date: format(startDate, "yyyy-MM-dd"),
+        end_date: format(endDate, "yyyy-MM-dd"),
+        notes: notes || null,
+        status: computedStatus,
+      };
+
+      let sessionId = session?.id;
+
+      if (isEditMode && sessionId) {
+        const { error: updateError } = await supabase
+          .from("sessions")
+          .update(payload)
+          .eq("id", sessionId);
+        if (updateError) throw updateError;
+
+        // reset agent assignments before inserting new ones
+        const { error: deleteError } = await supabase
+          .from("session_agents")
+          .delete()
+          .eq("session_id", sessionId);
+        if (deleteError) throw deleteError;
+      } else {
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("sessions")
+          .insert({
+            ...payload,
+            fur_boss_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (sessionError) throw sessionError;
+        sessionId = sessionData.id;
+      }
+
+      if (!sessionId) throw new Error("Missing session id");
+
+      if (selectedAgents.length > 0) {
+        const agentAssignments = selectedAgents.map((agent) => ({
+          session_id: sessionId,
+          fur_agent_id: agent.id,
+        }));
+
+        const { error: agentError } = await supabase
+          .from("session_agents")
+          .insert(agentAssignments);
+
+        if (agentError) throw agentError;
+      }
+
+      toast({
+        title: isEditMode ? "Session updated!" : "Session created!",
+        description: `Care session for ${petName} has been ${isEditMode ? "updated" : "scheduled"}.`,
+      });
+
+      setSearchEmail("");
+      setSearchResults([]);
+      onSuccess();
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save session. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            {isEditMode ? "Update Care Session" : "Create Care Session 🗓"}
+          </DialogTitle>
+          <DialogDescription>
+            {isEditMode
+              ? `Adjust timing or agents for ${petName}'s care session.`
+              : `Schedule care dates for ${petName} and assign Fur Agents`}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Start Date */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">
+              Start Date <span className="text-destructive">*</span>
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal rounded-2xl border-2",
+                    !startDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "PPP") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 rounded-2xl">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* End Date */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">
+              End Date <span className="text-destructive">*</span>
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal rounded-2xl border-2",
+                    !endDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "PPP") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 rounded-2xl">
+                <Calendar
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                  disabled={(date) => (startDate ? date < startDate : false)}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Session Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="notes" className="text-sm font-semibold">
+              Notes (Optional)
+            </Label>
+            <Textarea
+              id="notes"
+              placeholder="Any special instructions or notes for this care period..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="rounded-2xl border-2 min-h-[80px]"
+            />
+          </div>
+
+          {/* Assign Fur Agents */}
+          <div className="space-y-2">
+            <Label className="text-sm font-semibold">Assign Fur Agents</Label>
+            <div className="relative">
+              <Input
+                placeholder="Search by email..."
+                value={searchEmail}
+                onChange={(e) => setSearchEmail(e.target.value)}
+                className="rounded-2xl border-2"
+              />
+              {searchResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 rounded-2xl shadow-lg z-10 max-h-48 overflow-y-auto">
+                  {searchResults.map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => addAgent(agent)}
+                      className="w-full p-3 text-left hover:bg-muted transition-colors flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{agent.name}</p>
+                        <p className="text-xs text-muted-foreground">{agent.email}</p>
+                      </div>
+                      <Plus className="h-4 w-4 text-primary" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Selected Agents */}
+            {selectedAgents.length > 0 && (
+              <div className="space-y-2 mt-3">
+                {selectedAgents.map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="flex items-center justify-between bg-primary/10 rounded-2xl p-3"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">{agent.name}</p>
+                      <p className="text-xs text-muted-foreground">{agent.email}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeAgent(agent.id)}
+                      className="rounded-full"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            disabled={loading || !startDate || !endDate}
+            className="w-full rounded-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {isEditMode ? "Updating Session..." : "Creating Session..."}
+              </>
+            ) : (
+              isEditMode ? "Save Changes" : "Create Session 🎉"
+            )}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+

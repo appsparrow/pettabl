@@ -123,54 +123,100 @@ CREATE POLICY "Users can insert their own profile"
   TO authenticated
   WITH CHECK (auth.uid() = id);
 
--- RLS Policies for pets
+-- Helper functions to avoid recursive policy checks
+CREATE OR REPLACE FUNCTION public.is_session_owner(session_uuid uuid, user_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.sessions
+    WHERE id = session_uuid
+      AND fur_boss_id = user_uuid
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_session_agent(session_uuid uuid, user_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.session_agents
+    WHERE session_id = session_uuid
+      AND fur_agent_id = user_uuid
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_pet_agent(pet_uuid uuid, user_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.sessions s
+    JOIN public.session_agents sa ON sa.session_id = s.id
+    WHERE s.pet_id = pet_uuid
+      AND sa.fur_agent_id = user_uuid
+  );
+$$;
+
+-- RLS Policies for pets (fixed to avoid recursion)
 CREATE POLICY "Fur bosses can manage their own pets"
   ON public.pets FOR ALL
   TO authenticated
-  USING (fur_boss_id = auth.uid());
+  USING (fur_boss_id = auth.uid())
+  WITH CHECK (fur_boss_id = auth.uid());
 
-CREATE POLICY "Fur agents can view pets they're assigned to"
+CREATE POLICY "Fur agents can view assigned pets"
   ON public.pets FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.session_agents sa
-      JOIN public.sessions s ON s.id = sa.session_id
-      WHERE s.pet_id = pets.id AND sa.fur_agent_id = auth.uid()
-    )
-  );
+  USING (public.is_pet_agent(pets.id, auth.uid()));
 
 -- RLS Policies for sessions
 CREATE POLICY "Fur bosses can manage their own sessions"
   ON public.sessions FOR ALL
   TO authenticated
-  USING (fur_boss_id = auth.uid());
+  USING (fur_boss_id = auth.uid())
+  WITH CHECK (fur_boss_id = auth.uid());
 
-CREATE POLICY "Fur agents can view sessions they're assigned to"
+CREATE POLICY "Fur agents can view assigned sessions"
   ON public.sessions FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.session_agents
-      WHERE session_id = sessions.id AND fur_agent_id = auth.uid()
-    )
-  );
+  USING (public.is_session_agent(sessions.id, auth.uid()));
 
--- RLS Policies for session_agents
-CREATE POLICY "Fur bosses can manage session agents"
-  ON public.session_agents FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.sessions
-      WHERE id = session_id AND fur_boss_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "Fur agents can view their assignments"
+-- RLS Policies for session_agents (split to avoid recursion)
+CREATE POLICY "Session agents: fur agent can view own"
   ON public.session_agents FOR SELECT
   TO authenticated
   USING (fur_agent_id = auth.uid());
+
+CREATE POLICY "Session agents: fur boss can view"
+  ON public.session_agents FOR SELECT
+  TO authenticated
+  USING (public.is_session_owner(session_agents.session_id, auth.uid()));
+
+CREATE POLICY "Session agents: fur boss can insert"
+  ON public.session_agents FOR INSERT
+  TO authenticated
+  WITH CHECK (public.is_session_owner(session_id, auth.uid()));
+
+CREATE POLICY "Session agents: fur boss can update"
+  ON public.session_agents FOR UPDATE
+  TO authenticated
+  USING (public.is_session_owner(session_id, auth.uid()))
+  WITH CHECK (public.is_session_owner(session_id, auth.uid()));
+
+CREATE POLICY "Session agents: fur boss can delete"
+  ON public.session_agents FOR DELETE
+  TO authenticated
+  USING (public.is_session_owner(session_id, auth.uid()));
 
 -- RLS Policies for care_tasks
 CREATE POLICY "Fur bosses can manage care tasks"

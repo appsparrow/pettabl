@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import BossDashboard from "./pages/BossDashboard";
 import AgentDashboard from "./pages/AgentDashboard";
+import PetDetail from "./pages/PetDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/boss-dashboard" element={<BossDashboard />} />
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
+          <Route path="/pet/:petId" element={<PetDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

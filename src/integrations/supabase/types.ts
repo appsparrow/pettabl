@@ -151,6 +151,57 @@ export type Database = {
           },
         ]
       }
+      pet_care_plans: {
+        Row: {
+          created_at: string
+          daily_frequency: number | null
+          feeding_notes: string | null
+          habits: Json
+          id: string
+          meal_plan: Json
+          pet_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          daily_frequency?: number | null
+          feeding_notes?: string | null
+          habits?: Json
+          id?: string
+          meal_plan?: Json
+          pet_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          daily_frequency?: number | null
+          feeding_notes?: string | null
+          habits?: Json
+          id?: string
+          meal_plan?: Json
+          pet_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pet_care_plans_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: true
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pet_care_plans_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pets: {
         Row: {
           age: number | null

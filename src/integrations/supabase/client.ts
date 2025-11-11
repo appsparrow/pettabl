@@ -2,8 +2,15 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const fallbackUrl = 'http://127.0.0.1:54321';
+const fallbackKey = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || fallbackUrl;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || fallbackKey;
+
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) {
+  console.info('[Supabase] Using fallback local configuration. Create a .env.local file to override.');
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
