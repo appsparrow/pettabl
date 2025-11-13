@@ -1,4 +1,4 @@
--- Simple Schedule System (inspired by old DingDongDog)
+-- Simple Schedule System (inspired by old Pettabl)
 -- This replaces the complex pet_care_plans with a simpler approach
 
 -- Create enum for time periods
