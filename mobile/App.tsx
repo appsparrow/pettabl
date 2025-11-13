@@ -20,6 +20,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Home, UserRound, PawPrint, Calendar } from 'lucide-react-native';
 import { supabase } from './src/lib/supabase';
+import LandingScreen from './src/screens/LandingScreen';
 import BossDashboard from './src/screens/BossDashboard';
 import AgentDashboard from './src/screens/AgentDashboard';
 import ProfileScreen from './src/screens/ProfileScreen';
@@ -30,7 +31,11 @@ import AgentProfileScreen from './src/screens/AgentProfileScreen';
 import { colors } from './src/theme/colors';
 import { RoleProvider, useRole } from './src/context/RoleContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 const logo = require('./assets/logo-pettabl.png');
+
+WebBrowser.maybeCompleteAuthSession();
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -51,15 +56,107 @@ function AuthScreen({ onSignIn }: { onSignIn: () => void }) {
   };
 
   const signUp = async () => {
-    const { error } = await supabase.auth.signUp({ 
+    const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
       options: { data: { role, name: name || email.split('@')[0] } }
     });
     if (error) Alert.alert('Error', error.message);
-    else {
+    else if (data?.user && !data.session) {
+      // Email confirmation required
+      Alert.alert(
+        '📧 Confirm your email',
+        'Please check your email and click the confirmation link to continue.',
+        [{ text: 'OK', onPress: () => setIsSignUp(false) }]
+      );
+    } else {
       Alert.alert('Success! 🎉', 'Account created! You can now sign in.');
       setIsSignUp(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      // Use Supabase's callback URL - it will redirect back to the app
+      const supabaseUrl = 'https://cxnvsqkeifgbjzrelytl.supabase.co';
+      const redirectTo = `${supabaseUrl}/auth/v1/callback`;
+      
+      console.log('OAuth Redirect:', redirectTo);
+      
+      // For mobile, we need to handle the OAuth differently
+      if (Platform.OS !== 'web') {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: redirectTo,
+            skipBrowserRedirect: true, // We'll handle it manually
+          },
+        });
+        
+        if (error) {
+          Alert.alert('OAuth Error', error.message);
+          console.error('OAuth error:', error);
+          return;
+        }
+        
+        // Open the OAuth URL in browser
+        if (data?.url) {
+          const result = await WebBrowser.openAuthSessionAsync(
+            data.url,
+            redirectTo
+          );
+          
+          console.log('Auth result:', result);
+          
+          if (result.type === 'success' && result.url) {
+            // Extract the tokens from the callback URL
+            const url = new URL(result.url);
+            const access_token = url.searchParams.get('access_token');
+            const refresh_token = url.searchParams.get('refresh_token');
+            
+            if (access_token && refresh_token) {
+              // Set the session with the tokens
+              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+                access_token,
+                refresh_token,
+              });
+              
+              if (sessionError) {
+                Alert.alert('Session Error', sessionError.message);
+              } else if (sessionData.session) {
+                onSignIn();
+              }
+            } else {
+              // Fallback: try to get session
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                onSignIn();
+              } else {
+                Alert.alert('Error', 'Authentication succeeded but no session found');
+              }
+            }
+          } else if (result.type === 'cancel') {
+            console.log('User cancelled OAuth');
+          }
+        }
+      } else {
+        // Web OAuth flow
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${window.location.origin}/auth/callback`,
+            skipBrowserRedirect: false,
+          },
+        });
+        
+        if (error) {
+          Alert.alert('OAuth Error', error.message);
+          console.error('OAuth error:', error);
+        }
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+      console.error('Sign in error:', error);
     }
   };
 
@@ -162,6 +259,22 @@ function AuthScreen({ onSignIn }: { onSignIn: () => void }) {
               <TouchableOpacity style={styles.primaryButton} onPress={isSignUp ? signUp : signIn}>
                 <Text style={styles.primaryButtonText}>{isSignUp ? 'Sign Up' : 'Sign In'}</Text>
               </TouchableOpacity>
+
+              {/* Google OAuth - Temporarily disabled
+              {!isSignUp && (
+                <>
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>Or continue with</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  <TouchableOpacity style={styles.googleButton} onPress={signInWithGoogle}>
+                    <Text style={styles.googleButtonText}>🔐 Sign in with Google</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              */}
 
               <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)} style={styles.switchButton}>
                 <Text style={styles.switchButtonText}>
@@ -310,7 +423,22 @@ export default function App() {
   if (!session) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <AuthScreen onSignIn={() => setSession(true)} />
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {Platform.OS === 'web' ? (
+              <>
+                <Stack.Screen name="Landing" component={LandingScreen} />
+                <Stack.Screen name="Auth">
+                  {(props) => <AuthScreen {...props} onSignIn={() => setSession(true)} />}
+                </Stack.Screen>
+              </>
+            ) : (
+              <Stack.Screen name="Auth">
+                {(props) => <AuthScreen {...props} onSignIn={() => setSession(true)} />}
+              </Stack.Screen>
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
       </GestureHandlerRootView>
     );
   }
@@ -353,6 +481,11 @@ const styles = StyleSheet.create({
   roleSubtextActive: { color: colors.primary },
   primaryButton: { height: 56, backgroundColor: colors.primary, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 12, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   primaryButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { marginHorizontal: 12, color: colors.textMuted, fontSize: 12, textTransform: 'uppercase' },
+  googleButton: { height: 56, backgroundColor: '#fff', borderWidth: 2, borderColor: colors.border, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  googleButtonText: { color: colors.text, fontSize: 16, fontWeight: '600' },
   switchButton: { paddingVertical: 12 },
   switchButtonText: { color: colors.textMuted, fontSize: 14, textAlign: 'center' },
   container: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
