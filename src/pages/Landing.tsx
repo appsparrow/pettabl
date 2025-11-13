@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dog, Heart, Calendar, Users, Shield, Smartphone, Check } from "lucide-react";
 
@@ -30,17 +29,29 @@ const Landing = () => {
             <Button
               size="lg"
               className="text-lg px-8 py-6 shadow-xl hover:shadow-2xl transition-all"
-              onClick={() => navigate("/auth")}
+              asChild
             >
-              Get Started Free 🚀
+              <a
+                href="https://apps.apple.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download on the App Store 🍎
+              </a>
             </Button>
             <Button
               size="lg"
               variant="outline"
               className="text-lg px-8 py-6"
-              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+              asChild
             >
-              Learn More
+              <a
+                href="https://play.google.com/store"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Get it on Google Play 🤖
+              </a>
             </Button>
           </div>
         </div>
@@ -134,14 +145,36 @@ const Landing = () => {
             Join pet parents and sitters who trust Pettabl for stress-free, in-home care coordination.
           </p>
           
-          <Button
-            size="lg"
-            variant="secondary"
-            className="text-lg px-12 py-6 shadow-2xl hover:scale-105 transition-transform"
-            onClick={() => navigate("/auth")}
-          >
-            Get Started — It's Free! 🎉
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button
+              size="lg"
+              variant="secondary"
+              className="text-lg px-12 py-6 shadow-2xl hover:scale-105 transition-transform"
+              asChild
+            >
+              <a
+                href="https://apps.apple.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download the iOS App 🚀
+              </a>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="text-lg px-12 py-6 border-white text-white bg-transparent hover:bg-white/10"
+              asChild
+            >
+              <a
+                href="https://play.google.com/store"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Android Beta Waitlist ✨
+              </a>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -161,10 +194,12 @@ const Landing = () => {
           </p>
           
           <div className="flex justify-center gap-6 text-sm text-muted-foreground">
-            <a href="/auth" className="hover:text-primary transition-colors">Sign In</a>
-            <span>•</span>
             <a href="mailto:contact@pettabl.com" className="hover:text-primary transition-colors">
               Contact
+            </a>
+            <span>•</span>
+            <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
+              Instagram
             </a>
           </div>
         </div>
