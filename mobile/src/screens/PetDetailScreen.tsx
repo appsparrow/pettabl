@@ -202,14 +202,6 @@ export default function PetDetailScreen({ route, navigation }: any) {
           <ArrowLeft color="#fff" size={24} />
         </TouchableOpacity>
 
-        {isBoss && (
-          <View style={styles.headerButtons}>
-            <TouchableOpacity style={styles.headerButton} onPress={() => setEditOpen(true)}>
-              <Edit color="#fff" size={20} />
-            </TouchableOpacity>
-          </View>
-        )}
-
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => {
@@ -258,12 +250,21 @@ export default function PetDetailScreen({ route, navigation }: any) {
               )}
             </View>
             {isBoss && (
-              <TouchableOpacity
-                style={[styles.addButton, { alignSelf: 'flex-start', marginTop: 12 }]}
-                onPress={() => navigation.navigate('ScheduleEditor', { petId })}
-              >
-                <Text style={styles.addButtonText}>Daily Schedule</Text>
-              </TouchableOpacity>
+              <View style={styles.manageRow}>
+                <TouchableOpacity
+                  style={styles.manageButton}
+                  onPress={() => setEditOpen(true)}
+                >
+                  <Edit color="#fff" size={16} />
+                  <Text style={styles.manageButtonText}>Edit Pet</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.manageButton, { backgroundColor: '#f97316' }]}
+                  onPress={() => navigation.navigate('ScheduleEditor', { petId })}
+                >
+                  <Text style={styles.manageButtonText}>Daily Schedule</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
 
@@ -423,7 +424,7 @@ const styles = StyleSheet.create({
   photoBadge: { position: 'absolute', bottom: 6, right: 6, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' },
   scroll: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-  content: { marginTop: -40, paddingHorizontal: 20, paddingBottom: 40, backgroundColor: 'rgba(255,255,255,0.82)', borderTopLeftRadius: 32, borderTopRightRadius: 32, minHeight: '100%' },
+  content: { marginTop: -32, paddingTop: 48, paddingHorizontal: 20, paddingBottom: 40, backgroundColor: 'rgba(255,255,255,0.82)', borderTopLeftRadius: 32, borderTopRightRadius: 32, minHeight: '100%' },
   card: { backgroundColor: '#fff', borderRadius: 20, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
   petHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   petInfo: { flex: 1 },
@@ -439,6 +440,9 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 16, color: colors.textMuted, lineHeight: 24 },
   addButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, gap: 4 },
   addButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  manageRow: { flexDirection: 'row', gap: 12, marginTop: 16, flexWrap: 'wrap' },
+  manageButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14 },
+  manageButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   emptyState: { alignItems: 'center', paddingVertical: 40, backgroundColor: '#fff', borderRadius: 16 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 16, color: colors.textMuted },
