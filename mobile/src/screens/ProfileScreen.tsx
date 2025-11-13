@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert, FlatList, Image, Linking } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { UserRound, Mail, Phone, MapPin, Edit, Save, X, LogOut, Shuffle } from 'lucide-react-native';
+import { UserRound, Mail, Phone, MapPin, Edit, Save, X, LogOut, Shuffle, Camera } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { AddPetModal } from '../components/AddPetModal';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRole } from '../context/RoleContext';
+import { PetIcon } from '../components/PetIcon';
+import { uploadImageToR2, deleteImageFromR2 } from '../lib/r2-storage';
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
@@ -15,7 +18,10 @@ export default function ProfileScreen() {
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', bio: '' });
   const [pets, setPets] = useState<any[]>([]);
   const [addPetOpen, setAddPetOpen] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const navigation = useNavigation<any>();
+  const { activeRole, toggleRole } = useRole();
 
   useEffect(() => {
     loadProfile();
@@ -50,20 +56,61 @@ export default function ProfileScreen() {
   };
   useFocusEffect(useCallback(() => { loadProfile(); }, []));
 
+  const pickPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
   const saveProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .update(formData)
-      .eq('id', user.id);
+    setSaving(true);
+    try {
+      let photoUrl = profile?.photo_url;
 
-    if (error) Alert.alert('Error', error.message);
-    else {
+      // Upload new photo to R2 if selected
+      if (photoUri) {
+        // Delete old photo from R2 if exists
+        if (profile?.photo_url && profile.photo_url.includes('r2.cloudflarestorage.com')) {
+          try {
+            await deleteImageFromR2(profile.photo_url);
+          } catch (error) {
+            console.error('Error deleting old photo:', error);
+          }
+        }
+
+        // Upload new photo to R2
+        photoUrl = await uploadImageToR2(photoUri, 'profiles', true);
+        Alert.alert('Success', 'Profile photo uploaded! 📸');
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          ...formData,
+          photo_url: photoUrl,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
       Alert.alert('Success', 'Profile updated!');
       setEditing(false);
+      setPhotoUri(null);
       loadProfile();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save profile');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -71,9 +118,39 @@ export default function ProfileScreen() {
     await supabase.auth.signOut();
   };
   const switchRole = async () => {
-    const next = profile?.role === 'fur_boss' ? 'fur_agent' : 'fur_boss';
-    await AsyncStorage.setItem('activeRole', next);
-    Alert.alert('Role switched', `Active role set to ${next.replace('_', ' ')}`);
+    const next = activeRole === 'fur_boss' ? 'fur_agent' : 'fur_boss';
+    await toggleRole();
+    Alert.alert('Role switched', `Active mode set to ${next === 'fur_boss' ? 'Fur Boss' : 'Fur Agent'}`);
+  };
+
+  const normalizedPhone = profile?.phone ? profile.phone.replace(/[^\d+]/g, '') : '';
+
+  const openLink = async (url: string, fallback: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert('Not supported', fallback);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Not supported', fallback);
+    }
+  };
+
+  const handleCall = () => {
+    if (!normalizedPhone) return;
+    void openLink(`tel:${normalizedPhone}`, 'Unable to place a call on this device.');
+  };
+
+  const handleSms = () => {
+    if (!normalizedPhone) return;
+    void openLink(`sms:${normalizedPhone}`, 'Messaging is not available.');
+  };
+
+  const handleWhatsApp = () => {
+    if (!normalizedPhone) return;
+    void openLink(`https://wa.me/${normalizedPhone}`, 'WhatsApp is not installed or cannot be opened.');
   };
 
   if (!profile) {
@@ -85,38 +162,61 @@ export default function ProfileScreen() {
   }
 
   const pickProfilePhoto = async () => {
-    const { status } = await (await import('expo-image-picker')).requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Please grant photo access');
+    // If editing, just update the local state
+    if (editing) {
+      await pickPhoto();
       return;
     }
-    const ImagePicker = await import('expo-image-picker');
+
+    // If not editing, upload immediately
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [ImagePicker.MediaType.Images],
-      quality: 0.6,
+      mediaTypes: ['images'],
       allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
     });
-    if (!result.canceled && result.assets.length > 0) {
+
+    if (!result.canceled) {
       const uri = result.assets[0].uri;
-      const res = await fetch(uri);
-      const blob = await res.blob();
-      const fileName = `profile_${profile.id}_${Date.now()}.jpg`;
-      const { data, error } = await supabase.storage.from('profile-photos').upload(fileName, blob, {
-        contentType: 'image/jpeg',
-        upsert: true,
-      });
-      if (error) {
-        Alert.alert('Error', error.message);
-        return;
+      
+      try {
+        // Delete old photo from R2 if exists
+        if (profile?.photo_url && profile.photo_url.includes('r2.cloudflarestorage.com')) {
+          try {
+            await deleteImageFromR2(profile.photo_url);
+          } catch (error) {
+            console.error('Error deleting old photo:', error);
+          }
+        }
+
+        // Upload to R2
+        const photoUrl = await uploadImageToR2(uri, 'profiles', true);
+        
+        // Update database
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from('profiles')
+            .update({ photo_url: photoUrl })
+            .eq('id', user.id);
+          
+          Alert.alert('Success', 'Profile photo updated! 📸');
+          await loadProfile();
+        }
+      } catch (error: any) {
+        Alert.alert('Error', error.message || 'Failed to upload photo');
       }
-      const { data: pub } = supabase.storage.from('profile-photos').getPublicUrl(data.path);
-      await supabase.from('profiles').update({ photo_url: pub.publicUrl }).eq('id', profile.id);
-      await loadProfile();
     }
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.screen}>
+      <LinearGradient
+        colors={['#EEF2FF', '#FFFFFF']}
+        style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
+      />
+      <ScrollView style={styles.container}>
       {/* Header */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
@@ -126,7 +226,16 @@ export default function ProfileScreen() {
       >
         <View style={styles.avatarContainer}>
           <TouchableOpacity style={styles.avatar} onPress={pickProfilePhoto}>
-            <UserRound color="#fff" size={48} />
+            {(photoUri || profile.photo_url) ? (
+              <Image source={{ uri: photoUri || profile.photo_url }} style={styles.avatarImage} />
+            ) : (
+              <UserRound color="#fff" size={48} />
+            )}
+            {editing && (
+              <View style={styles.cameraIconOverlay}>
+                <Camera color="#fff" size={20} />
+              </View>
+            )}
           </TouchableOpacity>
         </View>
         {!editing && (
@@ -181,9 +290,13 @@ export default function ProfileScreen() {
                 <X color={colors.textMuted} size={20} />
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={saveProfile}>
+              <TouchableOpacity 
+                style={[styles.saveButton, saving && styles.buttonDisabled]} 
+                onPress={saveProfile}
+                disabled={saving}
+              >
                 <Save color="#fff" size={20} />
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -191,7 +304,7 @@ export default function ProfileScreen() {
           <>
             <Text style={styles.name}>{profile.name || 'No name set'}</Text>
             <Text style={styles.role}>
-              {profile.role === 'fur_boss' ? '🐶 Fur Boss (Pet Owner)' : '❤️ Fur Agent (Caretaker)'}
+              {activeRole === 'fur_boss' ? '🐶 Fur Boss (Pet Owner)' : '❤️ Fur Agent (Caretaker)'}
             </Text>
 
             <View style={styles.infoCard}>
@@ -201,7 +314,22 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.infoRow}>
                 <Phone color={colors.textMuted} size={20} />
-                <Text style={styles.infoText}>{profile.phone || 'Add your phone'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.infoText}>{profile.phone || 'Add your phone'}</Text>
+                  {profile.phone && (
+                    <View style={styles.contactActions}>
+                      <TouchableOpacity style={styles.contactChip} onPress={handleCall}>
+                        <Text style={styles.contactChipText}>Call</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.contactChip} onPress={handleSms}>
+                        <Text style={styles.contactChipText}>Message</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.contactChip} onPress={handleWhatsApp}>
+                        <Text style={styles.contactChipText}>WhatsApp</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
               <View style={styles.infoRow}>
                 <MapPin color={colors.textMuted} size={20} />
@@ -214,7 +342,7 @@ export default function ProfileScreen() {
               <Text style={styles.bioText}>{profile.bio || 'Add a short bio about you'}</Text>
             </View>
 
-            {profile.role === 'fur_agent' && (
+            {activeRole === 'fur_agent' && (
               <View style={styles.statsCard}>
                 <Text style={styles.statsTitle}>Paw Points</Text>
                 <Text style={styles.statsValue}>⭐ {profile.paw_points || 0}</Text>
@@ -242,15 +370,9 @@ export default function ProfileScreen() {
                       style={styles.petCard}
                       onPress={() => navigation.navigate('PetDetail', { petId: p.id })}
                     >
-                      <Text style={styles.petEmoji}>
-                        {p.pet_type === 'dog' ? '🐶' :
-                         p.pet_type === 'cat' ? '🐱' :
-                         p.pet_type === 'fish' ? '🐠' :
-                         p.pet_type === 'bird' ? '🐦' :
-                         p.pet_type === 'rabbit' ? '🐰' :
-                         p.pet_type === 'turtle' ? '🐢' :
-                         p.pet_type === 'hamster' ? '🐭' : '🐾'}
-                      </Text>
+                      <View style={styles.petIcon}>
+                        <PetIcon type={p.pet_type} color={colors.primary} size={24} />
+                      </View>
                       <Text style={styles.petNameSmall}>{p.name}</Text>
                     </TouchableOpacity>
                   ))}
@@ -282,15 +404,31 @@ export default function ProfileScreen() {
         onCreated={loadProfile}
       />
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   loadingText: { fontSize: 18, color: colors.textMuted, textAlign: 'center', marginTop: 40 },
   header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 24, alignItems: 'center' },
   avatarContainer: { alignItems: 'center' },
   avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', borderWidth: 4, borderColor: '#fff' },
+  avatarImage: { width: 88, height: 88, borderRadius: 44 },
+  cameraIconOverlay: { 
+    position: 'absolute', 
+    bottom: 0, 
+    right: 0, 
+    backgroundColor: colors.primary, 
+    width: 32, 
+    height: 32, 
+    borderRadius: 16, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
   editButton: { position: 'absolute', top: 60, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
   content: { marginTop: -40, paddingHorizontal: 20, paddingBottom: 40, paddingTop: 50 },
   name: { fontSize: 28, fontWeight: 'bold', color: colors.text, textAlign: 'center', marginBottom: 8 },
@@ -312,15 +450,20 @@ const styles = StyleSheet.create({
   cancelButtonText: { fontSize: 16, fontWeight: '600', color: colors.textMuted },
   saveButton: { flex: 1, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary, gap: 8 },
   saveButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  buttonDisabled: { opacity: 0.5 },
   signOutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 56, borderRadius: 16, borderWidth: 2, borderColor: colors.primary, gap: 8, marginTop: 24 },
   signOutText: { fontSize: 16, fontWeight: '600', color: colors.primary },
   addButton: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
   addButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   petGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   petCard: { width: '30%', backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  petEmoji: { fontSize: 28, marginBottom: 8 },
+  petIcon: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
   petNameSmall: { fontSize: 12, fontWeight: '600', color: colors.text },
   emptyState: { alignItems: 'center', paddingVertical: 40, backgroundColor: '#fff', borderRadius: 16 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyText: { fontSize: 14, color: colors.textMuted },
+  contactActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  contactChip: { backgroundColor: colors.primary + '15', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
+  contactChipText: { color: colors.primary, fontWeight: '600', fontSize: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
 });

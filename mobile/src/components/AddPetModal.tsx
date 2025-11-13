@@ -3,6 +3,7 @@ import { Modal, View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
+import { PetIcon } from './PetIcon';
 
 type Props = {
   visible: boolean;
@@ -31,9 +32,10 @@ export function AddPetModal({ visible, onClose, onCreated }: Props) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.5,
+      mediaTypes: ['images'],
+      quality: 0.8,
       allowsEditing: true,
+      aspect: [1, 1],
     });
     if (!result.canceled && result.assets.length > 0) {
       setPhotoUri(result.assets[0].uri);
@@ -120,7 +122,9 @@ export function AddPetModal({ visible, onClose, onCreated }: Props) {
               )}
             </TouchableOpacity>
 
-            <TextInput placeholder="Pet Name" value={name} onChangeText={setName} style={styles.input} />
+            <Text style={styles.label}>Pet Name</Text>
+            <TextInput placeholder="Eg. Charlie" value={name} onChangeText={setName} style={styles.input} />
+            <Text style={styles.label}>Pet Type</Text>
             <View style={styles.typeRow}>
               {PET_TYPES.map((t) => (
                 <TouchableOpacity
@@ -128,15 +132,23 @@ export function AddPetModal({ visible, onClose, onCreated }: Props) {
                   onPress={() => setPetType(t)}
                   style={[styles.typeChip, petType === t && styles.typeChipActive]}
                 >
-                  <Text style={[styles.typeText, petType === t && styles.typeTextActive]}>{t}</Text>
+                  <View style={styles.typeChipContent}>
+                    <PetIcon type={t} size={18} color={petType === t ? colors.primary : colors.textMuted} />
+                    <Text style={[styles.typeText, petType === t && styles.typeTextActive]}>{t}</Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput placeholder="Breed" value={breed} onChangeText={setBreed} style={styles.input} />
-            <TextInput placeholder="Age (years)" value={age} onChangeText={setAge} keyboardType="number-pad" style={styles.input} />
-            <TextInput placeholder="Food preferences" value={food} onChangeText={setFood} style={styles.input} />
-            <TextInput placeholder="Medical info" value={medical} onChangeText={setMedical} style={styles.input} />
-            <TextInput placeholder="Vet contact" value={vet} onChangeText={setVet} style={styles.input} />
+            <Text style={styles.label}>Breed</Text>
+            <TextInput placeholder="Eg. Golden Retriever" value={breed} onChangeText={setBreed} style={styles.input} />
+            <Text style={styles.label}>Age (years)</Text>
+            <TextInput placeholder="Eg. 4" value={age} onChangeText={setAge} keyboardType="number-pad" style={styles.input} />
+            <Text style={styles.label}>Food Preferences</Text>
+            <TextInput placeholder="Meal schedule, brands..." value={food} onChangeText={setFood} style={styles.input} />
+            <Text style={styles.label}>Medical Info</Text>
+            <TextInput placeholder="Medications, allergies..." value={medical} onChangeText={setMedical} style={styles.input} />
+            <Text style={styles.label}>Vet Contact</Text>
+            <TextInput placeholder="Clinic name, phone" value={vet} onChangeText={setVet} style={styles.input} />
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity style={[styles.cancelButton, { flex: 1 }]} onPress={onClose}>
@@ -160,10 +172,12 @@ const styles = StyleSheet.create({
   photo: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 16 },
   photoImg: { width: 120, height: 120, borderRadius: 60 },
   photoPlaceholder: { color: colors.textMuted },
+  label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: 6, marginTop: 10 },
   input: { height: 52, borderWidth: 2, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 14, marginBottom: 12 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   typeChip: { borderWidth: 2, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
   typeChipActive: { borderColor: colors.primary, backgroundColor: colors.primary + '15' },
+  typeChipContent: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   typeText: { color: colors.textMuted, fontWeight: '600' },
   typeTextActive: { color: colors.primary },
   primaryButton: { height: 52, backgroundColor: colors.primary, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },

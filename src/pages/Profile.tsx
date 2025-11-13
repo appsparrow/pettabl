@@ -11,6 +11,7 @@ import { ArrowLeft, Camera, Loader2, User, Mail, Phone, MapPin, Edit2, Save, X, 
 import { useRole } from "@/contexts/RoleContext";
 import { PetCard } from "@/components/PetCard";
 import { AddPetModal } from "@/components/AddPetModal";
+import { uploadImageToR2, deleteImageFromR2 } from "@/lib/r2-storage";
 
 interface Profile {
   id: string;
@@ -121,21 +122,25 @@ const Profile = () => {
     try {
       let photoUrl = profile.photo_url;
 
+      // Upload new photo to R2 if selected
       if (photoFile) {
-        const fileExt = photoFile.name.split(".").pop();
-        const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
+        // Delete old photo from R2 if exists
+        if (profile.photo_url && profile.photo_url.includes('r2.cloudflarestorage.com')) {
+          try {
+            await deleteImageFromR2(profile.photo_url);
+          } catch (error) {
+            console.error('Error deleting old photo:', error);
+            // Continue with upload even if delete fails
+          }
+        }
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("profile-photos")
-          .upload(fileName, photoFile, { upsert: false });
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("profile-photos").getPublicUrl(uploadData.path);
-
-        photoUrl = publicUrl;
+        // Upload new photo to R2
+        photoUrl = await uploadImageToR2(photoFile, 'profiles', true);
+        
+        toast({
+          title: "Photo uploaded! 📸",
+          description: "Your profile photo has been updated.",
+        });
       }
 
       const { error } = await supabase

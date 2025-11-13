@@ -1,13 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Dog } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { useFocusEffect } from '@react-navigation/native';
 import { TodayScheduleChecklist } from '../components/TodayScheduleChecklist';
 import * as ImagePicker from 'expo-image-picker';
 import { format, parseISO } from 'date-fns';
+import { PetIcon, PetType } from '../components/PetIcon';
+import { uploadImageToR2, deleteImageFromR2 } from '../lib/r2-storage';
+import { ImageLightboxModal } from '../components/ImageLightboxModal';
 
 interface Schedule {
   id: string;
@@ -38,6 +41,7 @@ interface Pet {
   name: string;
   photo_url: string | null;
   breed: string | null;
+  pet_type: string | null;
 }
 
 export default function AgentPetDetailScreen({ route, navigation }: any) {
@@ -47,6 +51,7 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
   const [activitiesData, setActivitiesData] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lightboxImage, setLightboxImage] = useState<{ uri: string; title?: string; subtitle?: string; meta?: string } | null>(null);
   const [sessionInfo, setSessionInfo] = useState<{ start_date: string; end_date: string } | null>(null);
 
   useEffect(() => {
@@ -78,7 +83,8 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
             id,
             name,
             photo_url,
-            breed
+            breed,
+            pet_type
           )
         `)
         .eq('id', sessionId)
@@ -87,7 +93,8 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
       if (sessionError) throw sessionError;
 
       if (sessionData?.pets) {
-        setPet(sessionData.pets as Pet);
+        const petInfo = sessionData.pets as unknown as Pet;
+        setPet(petInfo);
         setSessionInfo({
           start_date: sessionData.start_date,
           end_date: sessionData.end_date,
@@ -171,7 +178,7 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [ImagePicker.MediaType.Images],
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     });
@@ -188,28 +195,7 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
 
       let photoUrl = null;
       if (photoUri) {
-        // Upload photo to Supabase Storage
-        const fileExt = photoUri.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `activity-photos/${fileName}`;
-
-        const response = await fetch(photoUri);
-        const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
-
-        const { error: uploadError } = await supabase.storage
-          .from('activity-photos')
-          .upload(filePath, arrayBuffer, {
-            contentType: `image/${fileExt}`,
-          });
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('activity-photos')
-          .getPublicUrl(filePath);
-
-        photoUrl = publicUrl;
+        photoUrl = await uploadImageToR2(photoUri, 'activities', true);
       }
 
       const today = new Date().toISOString().split('T')[0];
@@ -234,6 +220,15 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
 
   const handleUnmarkActivity = async (activityId: string) => {
     try {
+      const activity = activitiesData.find((a) => a.id === activityId);
+      if (activity?.photo_url && activity.photo_url.includes('r2')) {
+        try {
+          await deleteImageFromR2(activity.photo_url);
+        } catch (deleteErr) {
+          console.warn('Failed to remove activity photo from R2', deleteErr);
+        }
+      }
+
       const { error } = await supabase
         .from('activities')
         .delete()
@@ -248,183 +243,160 @@ export default function AgentPetDetailScreen({ route, navigation }: any) {
     }
   };
 
+  const handleViewPhoto = (activity: Activity) => {
+    if (!activity.photo_url) return;
+    setLightboxImage({
+      uri: activity.photo_url,
+      title: `${pet?.name || 'Pet'} — ${activity.activity_type.toUpperCase()}`,
+      subtitle: activity.caretaker?.name ? `Uploaded by ${activity.caretaker.name}` : undefined,
+      meta: format(parseISO(activity.created_at), 'MMM d • h:mm a'),
+    });
+  };
+
   if (loading || !pet) {
     return (
-      <View style={styles.container}>
+      <View style={styles.loadingContainer}>
         <Text>Loading...</Text>
       </View>
     );
   }
 
   const isLastDay = sessionInfo && sessionInfo.end_date === format(new Date(), 'yyyy-MM-dd');
+  const scheduleInstructions = {
+    feed: schedule?.feeding_instruction?.trim() || undefined,
+    walk: schedule?.walking_instruction?.trim() || undefined,
+    letout: schedule?.letout_instruction?.trim() || undefined,
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <View style={styles.screen}>
       <LinearGradient
-        colors={[colors.primary, colors.secondary]}
+        colors={['#f39de6', '#f8c77f']}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.header}
       >
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft color="#FFFFFF" size={24} />
+          <ArrowLeft color="#FFFFFF" size={20} />
+          <Text style={styles.backText}>Back to Dashboard</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{pet.name}</Text>
-      </LinearGradient>
 
-      <ScrollView style={styles.scrollContent}>
-        {/* Pet Info Card */}
-        <View style={styles.petInfoCard}>
-          <View style={styles.petPhotoContainer}>
+        <View style={styles.headerContent}>
+          <View style={styles.petAvatar}>
             {pet.photo_url ? (
               <Image source={{ uri: pet.photo_url }} style={styles.petPhoto} />
             ) : (
-              <View style={styles.petPhotoPlaceholder}>
-                <Dog color={colors.secondary} size={48} />
-              </View>
+              <PetIcon type={pet?.pet_type ? (pet.pet_type as PetType) : null} color="#F97316" size={40} />
             )}
           </View>
-          <View style={styles.petInfo}>
-            <Text style={styles.petName}>{pet.name}</Text>
-            {pet.breed && <Text style={styles.petBreed}>{pet.breed}</Text>}
+          <View>
+            <Text style={styles.petTitle}>{pet.name}</Text>
+            {pet.breed && <Text style={styles.petSubtitle}>{pet.breed}</Text>}
           </View>
         </View>
+      </LinearGradient>
 
-        {/* Session Info */}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         {sessionInfo && (
-          <View style={styles.sessionInfoCard}>
-            <Text style={styles.sessionInfoText}>
+          <View style={styles.sessionPill}>
+            <Text style={styles.sessionPillText}>
               Session: {format(parseISO(sessionInfo.start_date), 'MMM d')} - {format(parseISO(sessionInfo.end_date), 'MMM d, yyyy')}
             </Text>
           </View>
         )}
 
-        {/* Last Day Message */}
         {isLastDay && (
-          <View style={styles.lastDayCard}>
+          <LinearGradient colors={['#FFFBEB', '#FEF3C7']} style={styles.lastDayCard}>
             <Text style={styles.lastDayText}>
               🥹 Last day together! Give {pet.name} extra snuggles before you go.
             </Text>
-          </View>
+          </LinearGradient>
         )}
 
-        {/* Today's Schedule Checklist */}
-        <View style={styles.checklistContainer}>
-          <TodayScheduleChecklist
-            scheduleTimes={scheduleTimes}
-            completedActivities={activitiesData}
-            onCheckActivity={handleCheckActivity}
-            onUnmarkActivity={handleUnmarkActivity}
-          />
-        </View>
+        <TodayScheduleChecklist
+          scheduleTimes={scheduleTimes}
+          completedActivities={activitiesData}
+          onCheckActivity={handleCheckActivity}
+          onUnmarkActivity={handleUnmarkActivity}
+          instructions={scheduleInstructions}
+          onPressPhoto={handleViewPhoto}
+        />
       </ScrollView>
+      <ImageLightboxModal
+        visible={!!lightboxImage}
+        imageUrl={lightboxImage?.uri ?? null}
+        title={lightboxImage?.title}
+        subtitle={lightboxImage?.subtitle}
+        meta={lightboxImage?.meta}
+        onClose={() => setLightboxImage(null)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  screen: { flex: 1, backgroundColor: '#F6F8FF' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F6F8FF' },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingTop: 64,
+    paddingBottom: 40,
     paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  scrollContent: {
-    flex: 1,
-    padding: 24,
-  },
-  petInfoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    gap: 8,
+    marginBottom: 28,
   },
-  petPhotoContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    overflow: 'hidden',
+  backText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
   },
-  petPhoto: {
-    width: '100%',
-    height: '100%',
-  },
-  petPhotoPlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#F3F4F6',
+  petAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.25)',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
-  petInfo: {
-    flex: 1,
+  petPhoto: { width: '100%', height: '100%' },
+  petTitle: { fontSize: 32, fontWeight: '700', color: '#fff' },
+  petSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
+    gap: 24,
   },
-  petName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
+  sessionPill: {
+    backgroundColor: '#fff',
+    borderRadius: 999,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
-  petBreed: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  sessionInfoCard: {
-    padding: 16,
-    backgroundColor: '#EDE9FE',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
-    marginBottom: 16,
-  },
-  sessionInfoText: {
-    fontSize: 14,
-    color: '#7C3AED',
-    textAlign: 'center',
-  },
+  sessionPillText: { fontSize: 14, fontWeight: '600', color: '#7C3AED' },
   lastDayCard: {
-    padding: 16,
-    backgroundColor: '#FEF3C7',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    marginBottom: 16,
+    borderRadius: 24,
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
-  lastDayText: {
-    fontSize: 14,
-    color: '#92400E',
-    textAlign: 'center',
-  },
-  checklistContainer: {
-    marginBottom: 24,
-  },
+  lastDayText: { fontSize: 14, color: '#92400E', textAlign: 'center', fontWeight: '600' },
 });

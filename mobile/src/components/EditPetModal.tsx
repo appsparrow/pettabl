@@ -3,6 +3,7 @@ import { Modal, View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
+import { uploadImageToR2, deleteImageFromR2 } from '../lib/r2-storage';
 
 type Props = {
   visible: boolean;
@@ -45,29 +46,12 @@ export function EditPetModal({ visible, onClose, pet, onSaved }: Props) {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.5,
       allowsEditing: true,
     });
     if (!result.canceled && result.assets.length > 0) {
       setPhotoUri(result.assets[0].uri);
-    }
-  };
-
-  const uploadToBucket = async (uri: string): Promise<string | null> => {
-    try {
-      const res = await fetch(uri);
-      const blob = await res.blob();
-      const fileName = `pet_${pet.id}_${Date.now()}.jpg`;
-      const { data, error } = await supabase.storage.from('pet-photos').upload(fileName, blob, {
-        contentType: 'image/jpeg',
-        upsert: true,
-      });
-      if (error) throw error;
-      const { data: pub } = supabase.storage.from('pet-photos').getPublicUrl(data.path);
-      return pub.publicUrl ?? null;
-    } catch {
-      return null;
     }
   };
 
@@ -79,9 +63,23 @@ export function EditPetModal({ visible, onClose, pet, onSaved }: Props) {
     setSaving(true);
     try {
       let photo_url: string | null | undefined = undefined;
+      
+      // Upload new photo to R2 if selected
       if (photoUri) {
-        photo_url = await uploadToBucket(photoUri);
+        // Delete old photo from R2 if exists
+        if (pet.photo_url && pet.photo_url.includes('r2.cloudflarestorage.com')) {
+          try {
+            await deleteImageFromR2(pet.photo_url);
+          } catch (error) {
+            console.error('Error deleting old photo:', error);
+          }
+        }
+
+        // Upload new photo to R2
+        photo_url = await uploadImageToR2(photoUri, 'pets', true);
+        Alert.alert('Success', 'Pet photo uploaded! 📸');
       }
+      
       const update: any = {
         name,
         pet_type: petType,
@@ -111,14 +109,16 @@ export function EditPetModal({ visible, onClose, pet, onSaved }: Props) {
           <Text style={styles.title}>Edit Pet</Text>
           <ScrollView contentContainerStyle={{ paddingBottom: 16 }}>
             <TouchableOpacity style={styles.photo} onPress={pickPhoto}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={styles.photoImg} />
+              {photoUri || pet?.photo_url ? (
+                <Image source={{ uri: photoUri || pet?.photo_url }} style={styles.photoImg} />
               ) : (
                 <Text style={styles.photoPlaceholder}>📷 Change Photo</Text>
               )}
             </TouchableOpacity>
 
-            <TextInput placeholder="Pet Name" value={name} onChangeText={setName} style={styles.input} />
+            <Text style={styles.label}>Pet Name</Text>
+            <TextInput placeholder="Eg. Charlie" value={name} onChangeText={setName} style={styles.input} />
+            <Text style={styles.label}>Pet Type</Text>
             <View style={styles.typeRow}>
               {PET_TYPES.map((t) => (
                 <TouchableOpacity
@@ -130,11 +130,16 @@ export function EditPetModal({ visible, onClose, pet, onSaved }: Props) {
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput placeholder="Breed" value={breed} onChangeText={setBreed} style={styles.input} />
-            <TextInput placeholder="Age (years)" value={age} onChangeText={setAge} keyboardType="number-pad" style={styles.input} />
-            <TextInput placeholder="Food preferences" value={food} onChangeText={setFood} style={styles.input} />
-            <TextInput placeholder="Medical info" value={medical} onChangeText={setMedical} style={styles.input} />
-            <TextInput placeholder="Vet contact" value={vet} onChangeText={setVet} style={styles.input} />
+            <Text style={styles.label}>Breed</Text>
+            <TextInput placeholder="Eg. Golden Retriever" value={breed} onChangeText={setBreed} style={styles.input} />
+            <Text style={styles.label}>Age (years)</Text>
+            <TextInput placeholder="Eg. 4" value={age} onChangeText={setAge} keyboardType="number-pad" style={styles.input} />
+            <Text style={styles.label}>Food Preferences</Text>
+            <TextInput placeholder="Meal schedule, brands..." value={food} onChangeText={setFood} style={styles.input} />
+            <Text style={styles.label}>Medical Info</Text>
+            <TextInput placeholder="Medications, allergies..." value={medical} onChangeText={setMedical} style={styles.input} />
+            <Text style={styles.label}>Vet Contact</Text>
+            <TextInput placeholder="Clinic name, phone" value={vet} onChangeText={setVet} style={styles.input} />
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity style={[styles.cancelButton, { flex: 1 }]} onPress={onClose}>
@@ -158,6 +163,7 @@ const styles = StyleSheet.create({
   photo: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#f3f4f6', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 16 },
   photoImg: { width: 120, height: 120, borderRadius: 60 },
   photoPlaceholder: { color: colors.textMuted },
+  label: { fontSize: 14, fontWeight: '600', color: colors.textMuted, marginBottom: 6, marginTop: 10 },
   input: { height: 52, borderWidth: 2, borderColor: colors.border, borderRadius: 14, paddingHorizontal: 14, marginBottom: 12 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   typeChip: { borderWidth: 2, borderColor: colors.border, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },

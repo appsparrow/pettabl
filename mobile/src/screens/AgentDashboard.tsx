@@ -1,49 +1,49 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, Star } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { useFocusEffect } from '@react-navigation/native';
-import { PetAssignmentCard } from '../components/PetAssignmentCard';
+import { PetAssignmentCard, PetAssignmentCardProps } from '../components/PetAssignmentCard';
+import type { PetType } from '../components/PetIcon';
 import { eachDayOfInterval, format, parseISO, isAfter } from 'date-fns';
+import { useRole } from '../context/RoleContext';
 
 type DayStatus = 'future' | 'none' | 'partial' | 'complete';
 
-interface PetAssignment {
-  session_id: string;
-  pet_id: string;
-  pet_name: string;
-  pet_photo_url: string | null;
-  start_date: string;
-  end_date: string;
-  status: string;
-  activities_today: number;
-  total_activities_today: number;
-  day_statuses: { date: string; status: DayStatus }[];
-  isLastDayToday: boolean;
-  isUpcoming: boolean;
-}
+type PetAssignment = PetAssignmentCardProps;
 
 export default function AgentDashboard({ navigation }: any) {
   const [assignments, setAssignments] = useState<PetAssignment[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'current' | 'upcoming'>('current');
+  const { activeRole } = useRole();
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (activeRole === 'fur_agent') {
+      loadData();
+    }
+  }, [activeRole]);
   
-  useFocusEffect(useCallback(() => { loadData(); }, []));
+  useFocusEffect(
+    useCallback(() => {
+      if (activeRole === 'fur_agent') {
+        loadData();
+      }
+    }, [activeRole])
+  );
 
   const onRefresh = async () => {
+    if (activeRole !== 'fur_agent') return;
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   };
 
   const loadData = async () => {
+    if (activeRole !== 'fur_agent') return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     console.log('Loading assignments for user:', user.id);
@@ -162,6 +162,7 @@ export default function AgentDashboard({ navigation }: any) {
           pet_id: session.pet_id,
           pet_name: pet?.name || 'Unknown Pet',
           pet_photo_url: pet?.photo_url || null,
+          pet_type: (pet?.pet_type as PetType | null | undefined) ?? null,
           start_date: session.start_date,
           end_date: session.end_date,
           status: session.status,
@@ -182,134 +183,184 @@ export default function AgentDashboard({ navigation }: any) {
   const visibleAssignments = activeTab === 'current' ? currentAssignments : upcomingAssignments;
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
-    >
-      {/* Header */}
-      <LinearGradient
-        colors={[colors.primary, colors.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       >
-        <Text style={styles.greeting}>Welcome back! 👋</Text>
-        <Text style={styles.name}>{profile?.name || 'Agent'}</Text>
-        
-        {/* Paw Points */}
-        <View style={styles.pointsCard}>
-          <Star color="#FCD34D" size={20} fill="#FCD34D" />
-          <Text style={styles.pointsText}>{profile?.paw_points || 0} Paw Points</Text>
-        </View>
-      </LinearGradient>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'current' && styles.tabActive]}
-          onPress={() => setActiveTab('current')}
+        <LinearGradient
+          colors={['#f39de6', '#f8c77f']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
         >
-          <Text style={[styles.tabText, activeTab === 'current' && styles.tabTextActive]}>
-            Current ({currentAssignments.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'upcoming' && styles.tabActive]}
-          onPress={() => setActiveTab('upcoming')}
-        >
-          <Text style={[styles.tabText, activeTab === 'upcoming' && styles.tabTextActive]}>
-            Upcoming ({upcomingAssignments.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Assignments */}
-      <View style={styles.content}>
-        {visibleAssignments.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🐕</Text>
-            <Text style={styles.emptyTitle}>
-              {activeTab === 'current' ? 'No active assignments' : 'No upcoming assignments yet'}
-            </Text>
-            <Text style={styles.emptyText}>
-              You'll see your pet assignments here once a Fur Boss assigns you!
-            </Text>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.helloText}>Hello</Text>
+              <Text style={styles.nameText}>{profile?.name || 'Agent'}</Text>
+            </View>
+            <View style={styles.pointsCard}>
+              <View style={styles.pointsIcon}>
+                <Star color="#fcd34d" size={18} fill="#fcd34d" />
+              </View>
+              <View>
+                <Text style={styles.pointsLabel}>Your Paw Points</Text>
+                <Text style={styles.pointsValue}>{profile?.paw_points || 0}</Text>
+              </View>
+            </View>
           </View>
-        ) : (
-          visibleAssignments.map((assignment) => (
-            <PetAssignmentCard
-              key={assignment.session_id}
-              assignment={assignment}
-              onPress={() => navigation.navigate('AgentPetDetail', { sessionId: assignment.session_id })}
-            />
-          ))
-        )}
-      </View>
-    </ScrollView>
+        </LinearGradient>
+
+        <View style={styles.assignmentsSection}>
+          {refreshing && (
+            <View style={styles.refreshBanner}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.refreshText}>Refreshing…</Text>
+            </View>
+          )}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Assignments</Text>
+            <View style={styles.tabGroup}>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'current' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('current')}
+              >
+                <Text style={[styles.tabButtonText, activeTab === 'current' && styles.tabButtonTextActive]}>Current</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'upcoming' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('upcoming')}
+              >
+                <Text style={[styles.tabButtonText, activeTab === 'upcoming' && styles.tabButtonTextActive]}>Upcoming</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {visibleAssignments.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🐾</Text>
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'current' ? 'No active assignments' : 'No upcoming assignments yet'}
+              </Text>
+              <Text style={styles.emptyText}>
+                You’ll see your pet assignments here once a Fur Boss assigns you!
+              </Text>
+            </View>
+          ) : (
+            visibleAssignments.map((assignment) => (
+              <PetAssignmentCard
+                key={assignment.session_id}
+                assignment={assignment}
+                onPress={() => navigation.navigate('AgentPetDetail', { sessionId: assignment.session_id })}
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: { paddingTop: 60, paddingBottom: 32, paddingHorizontal: 24, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
-  greeting: { fontSize: 16, color: 'rgba(255,255,255,0.9)', marginBottom: 4 },
-  name: { fontSize: 32, fontWeight: '700', color: '#FFFFFF', marginBottom: 16 },
+  screen: { flex: 1, backgroundColor: '#F6F8FF' },
+  scrollContent: { paddingBottom: 48, paddingHorizontal: 0 },
+  header: {
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    paddingTop: 64,
+    paddingBottom: 48,
+    paddingHorizontal: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  helloText: { fontSize: 16, color: 'rgba(255,255,255,0.85)', marginBottom: 4 },
+  nameText: { fontSize: 32, fontWeight: '700', color: '#fff' },
   pointsCard: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pointsIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pointsLabel: { fontSize: 12, color: '#fff', opacity: 0.85 },
+  pointsValue: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  assignmentsSection: { paddingHorizontal: 24, paddingTop: 24 },
+  refreshBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  pointsText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    gap: 12,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
+    padding: 10,
+    backgroundColor: '#fff',
     borderRadius: 16,
-    backgroundColor: '#F3F4F6',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  refreshText: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 20,
   },
-  tabActive: {
-    backgroundColor: colors.primary,
+  sectionTitle: { fontSize: 20, fontWeight: '700', color: '#232946' },
+  tabGroup: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 4,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
-  tabText: {
+  tabButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  tabButtonActive: {
+    backgroundColor: '#f977ce',
+  },
+  tabButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: '#7b7f9e',
   },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  content: {
-    padding: 24,
+  tabButtonTextActive: {
+    color: '#fff',
   },
   emptyState: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingVertical: 48,
     alignItems: 'center',
-    paddingVertical: 60,
+    marginTop: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#1f2233', marginBottom: 8 },
+  emptyText: { fontSize: 14, color: '#7b7f9e', textAlign: 'center', paddingHorizontal: 32 },
 });

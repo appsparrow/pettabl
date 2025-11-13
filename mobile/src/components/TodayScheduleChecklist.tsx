@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, Check, Utensils, Footprints, Home, Sun, Cloud, Moon, Camera } from 'lucide-react-native';
@@ -20,11 +21,15 @@ interface Activity {
   created_at: string;
 }
 
+type InstructionMap = Partial<Record<'feed' | 'walk' | 'letout', string | null | undefined>>;
+
 interface Props {
   scheduleTimes: ScheduleTime[];
   completedActivities: Activity[];
   onCheckActivity: (activityType: 'feed' | 'walk' | 'letout', timePeriod: 'morning' | 'afternoon' | 'evening') => void;
   onUnmarkActivity?: (activityId: string) => void;
+  instructions?: InstructionMap;
+  onPressPhoto?: (activity: Activity) => void;
 }
 
 const getActivityIcon = (type: string, size = 20) => {
@@ -67,7 +72,9 @@ export function TodayScheduleChecklist({
   scheduleTimes, 
   completedActivities,
   onCheckActivity,
-  onUnmarkActivity
+  onUnmarkActivity,
+  instructions,
+  onPressPhoto,
 }: Props) {
   const isCompleted = (activityType: string, timePeriod: string) => {
     return completedActivities.some(
@@ -111,6 +118,20 @@ export function TodayScheduleChecklist({
           </View>
         ) : (
           <View style={styles.content}>
+            {(instructions?.feed || instructions?.walk || instructions?.letout) && (
+              <View style={styles.instructionsCard}>
+                <Text style={styles.instructionsHeading}>Care instructions</Text>
+                {instructions?.feed ? (
+                  <InstructionLine label="Feeding" value={instructions.feed} icon={<Utensils color="#F97316" size={16} />} />
+                ) : null}
+                {instructions?.walk ? (
+                  <InstructionLine label="Walking" value={instructions.walk} icon={<Footprints color="#0EA5E9" size={16} />} />
+                ) : null}
+                {instructions?.letout ? (
+                  <InstructionLine label="Let Out" value={instructions.letout} icon={<Home color="#6366F1" size={16} />} />
+                ) : null}
+              </View>
+            )}
             {periods.map((period) => {
               const periodItems = groupedSchedule[period] || [];
               if (periodItems.length === 0) return null;
@@ -125,6 +146,7 @@ export function TodayScheduleChecklist({
                   {periodItems.map((item) => {
                     const completed = isCompleted(item.activity_type, item.time_period);
                     const activity = getCompletedActivity(item.activity_type, item.time_period);
+                    const specificInstruction = instructions?.[item.activity_type]?.trim();
 
                     return (
                       <View
@@ -153,16 +175,32 @@ export function TodayScheduleChecklist({
                             ]}>
                               {getActivityLabel(item.activity_type)}
                             </Text>
+                            {specificInstruction ? (
+                              <Text
+                                style={[
+                                  styles.instructionText,
+                                  completed && styles.instructionTextCompleted
+                                ]}
+                                numberOfLines={3}
+                              >
+                                {specificInstruction}
+                              </Text>
+                            ) : null}
                             {completed && activity && (
                               <View style={styles.completedInfo}>
                                 <Text style={styles.completedText}>
                                   ✓ by {activity.caretaker?.name || 'Agent'} at {formatTime(activity.created_at)}
                                 </Text>
                                 {activity.photo_url && (
-                                  <View style={styles.photoBadge}>
-                                    <Camera color="#10B981" size={12} />
-                                    <Text style={styles.photoBadgeText}>Photo</Text>
-                                  </View>
+                                  <TouchableOpacity
+                                    onPress={onPressPhoto ? () => onPressPhoto(activity) : undefined}
+                                    activeOpacity={onPressPhoto ? 0.75 : 1}
+                                  >
+                                    <View style={styles.photoBadge}>
+                                      <Camera color="#10B981" size={12} />
+                                      <Text style={styles.photoBadgeText}>Photo</Text>
+                                    </View>
+                                  </TouchableOpacity>
                                 )}
                               </View>
                             )}
@@ -247,6 +285,18 @@ const styles = StyleSheet.create({
   content: {
     gap: 20,
   },
+  instructionsCard: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+  },
+  instructionsHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2943',
+    textTransform: 'uppercase',
+  },
   periodSection: {
     gap: 12,
   },
@@ -304,6 +354,15 @@ const styles = StyleSheet.create({
     color: '#10B981',
     textDecorationLine: 'line-through',
   },
+  instructionText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  instructionTextCompleted: {
+    color: '#047857',
+  },
   completedInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,4 +414,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
+function InstructionLine({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
+  return (
+    <View style={{ gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {icon}
+        <Text style={{ fontSize: 13, fontWeight: '600', color: '#1F2937' }}>{label}</Text>
+      </View>
+      <Text style={{ fontSize: 12, color: '#475569', lineHeight: 16 }}>{value.trim()}</Text>
+    </View>
+  );
+}
 

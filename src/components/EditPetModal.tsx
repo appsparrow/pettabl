@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Loader2, X, Dog, Cat, Fish, Bird, Rabbit, Origami, Turtle, Rat } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
+import { uploadImageToR2, deleteImageFromR2 } from "@/lib/r2-storage";
 
 interface EditPetModalProps {
   open: boolean;
@@ -83,21 +84,25 @@ export const EditPetModal = ({ open, onOpenChange, pet, onSuccess }: EditPetModa
     try {
       let photoUrl: string | null = pet.photo_url;
 
+      // Upload new photo to R2 if changed
       if (photoChanged && photoFile) {
-        const fileExt = photoFile.name.split(".").pop();
-        const fileName = `${pet.fur_boss_id}_${Date.now()}.${fileExt}`;
+        // Delete old photo from R2 if exists
+        if (pet.photo_url && pet.photo_url.includes('r2.cloudflarestorage.com')) {
+          try {
+            await deleteImageFromR2(pet.photo_url);
+          } catch (error) {
+            console.error('Error deleting old photo:', error);
+            // Continue with upload even if delete fails
+          }
+        }
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("pet-photos")
-          .upload(fileName, photoFile, { upsert: false });
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("pet-photos").getPublicUrl(uploadData.path);
-
-        photoUrl = publicUrl;
+        // Upload new photo to R2
+        photoUrl = await uploadImageToR2(photoFile, 'pets', true);
+        
+        toast({
+          title: "Photo uploaded! 📸",
+          description: "Pet photo has been updated.",
+        });
       }
 
       const { error } = await supabase
