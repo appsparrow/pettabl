@@ -131,14 +131,14 @@ const Auth = () => {
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center space-y-2">
           <div className="flex justify-center mb-4">
-            <div className="relative">
-              <Dog className="h-16 w-16 text-primary animate-tail-wag" />
-              <Heart className="h-6 w-6 text-secondary absolute -top-2 -right-2 animate-paw-bounce" />
-            </div>
+            <img 
+              src="/logo-pettabl.png" 
+              alt="Pettabl Logo" 
+              className="h-20 w-auto"
+            />
           </div>
-          <CardTitle className="text-3xl font-bold text-primary">DingDongDog</CardTitle>
           <CardDescription className="text-base">
-            Your paw-some pet care companion! 🐕
+            Modern pet care, anywhere 🐾
           </CardDescription>
         </CardHeader>
         <CardContent>

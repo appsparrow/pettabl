@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Dog, Heart, Calendar, Users, Shield, Smartphone } from 'lucide-react-native';
 import { colors } from '../theme/colors';
+
+const logo = require('../../assets/logo-pettabl.png');
 
 export default function LandingScreen({ navigation }: any) {
   const isWeb = Platform.OS === 'web';
@@ -14,12 +16,9 @@ export default function LandingScreen({ navigation }: any) {
       >
         {/* Hero Section */}
         <View style={styles.hero}>
-          <View style={styles.iconContainer}>
-            <Dog size={80} color={colors.primary} />
-            <Heart size={40} color={colors.secondary} style={styles.heartIcon} />
+          <View style={styles.logoContainer}>
+            <Image source={logo} style={styles.logo} resizeMode="contain" />
           </View>
-          
-          <Text style={styles.title}>Pettabl</Text>
           <Text style={styles.subtitle}>Modern Pet Care Coordination 🐾</Text>
           
           <Text style={styles.description}>
@@ -100,7 +99,7 @@ export default function LandingScreen({ navigation }: any) {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Dog size={48} color={colors.primary} />
+          <Image source={logo} style={styles.footerLogo} resizeMode="contain" />
           <Text style={styles.footerText}>© 2025 Pettabl. Made with ❤️ for pets everywhere.</Text>
           <View style={styles.footerLinks}>
             <TouchableOpacity onPress={() => navigation.navigate('Auth')}>
@@ -140,14 +139,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: 'center',
   },
-  iconContainer: {
-    position: 'relative',
+  logoContainer: {
     marginBottom: 24,
+    alignItems: 'center',
   },
-  heartIcon: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
+  logo: {
+    width: 280,
+    height: 120,
   },
   title: {
     fontSize: 56,
@@ -285,6 +283,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: 'center',
     backgroundColor: `${colors.muted}30`,
+  },
+  footerLogo: {
+    width: 180,
+    height: 64,
   },
   footerText: {
     color: colors.textMuted,
