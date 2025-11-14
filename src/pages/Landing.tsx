@@ -27,30 +27,18 @@ const Landing = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              className="text-lg px-8 py-6 shadow-xl hover:shadow-2xl transition-all"
-              asChild
+              className="text-lg px-8 py-6 shadow-xl bg-gradient-to-r from-primary to-secondary opacity-80 cursor-not-allowed"
+              disabled
             >
-              <a
-                href="https://apps.apple.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Download on the App Store 🍎
-              </a>
+              Coming Soon on iOS 🍎
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="text-lg px-8 py-6"
-              asChild
+              className="text-lg px-8 py-6 opacity-80 cursor-not-allowed"
+              disabled
             >
-              <a
-                href="https://play.google.com/store"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Get it on Google Play 🤖
-              </a>
+              Coming Soon on Android 🤖
             </Button>
             <Button
               size="lg"
@@ -156,32 +144,23 @@ const Landing = () => {
             <Button
               size="lg"
               variant="secondary"
-              className="text-lg px-12 py-6 shadow-2xl hover:scale-105 transition-transform"
-              asChild
+              className="text-lg px-12 py-6 shadow-2xl opacity-80 cursor-not-allowed"
+              disabled
             >
-              <a
-                href="https://apps.apple.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Download the iOS App 🚀
-              </a>
+              iOS Launch — Coming Soon 🚀
             </Button>
             <Button
               size="lg"
               variant="outline"
-              className="text-lg px-12 py-6 border-white text-white bg-transparent hover:bg-white/10"
-              asChild
+              className="text-lg px-12 py-6 border-white text-white bg-transparent opacity-80 cursor-not-allowed"
+              disabled
             >
-              <a
-                href="https://play.google.com/store"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Android Beta Waitlist ✨
-              </a>
+              Android Launch — Coming Soon ✨
             </Button>
           </div>
+          <p className="mt-4 text-sm uppercase tracking-[0.3em] text-white/80">
+            Follow us for launch updates · Web preview live today
+          </p>
         </div>
       </div>
 

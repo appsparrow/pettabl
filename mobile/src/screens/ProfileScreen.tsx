@@ -309,31 +309,38 @@ export default function ProfileScreen() {
 
             <View style={styles.infoCard}>
               <View style={styles.infoRow}>
-                <Mail color={colors.textMuted} size={20} />
-                <Text style={styles.infoText}>{profile.email}</Text>
+                {[<Mail key="icon" color={colors.textMuted} size={20} />, (
+                  <Text key="value" style={styles.infoText}>
+                    {profile.email}
+                  </Text>
+                )]}
               </View>
               <View style={styles.infoRow}>
-                <Phone color={colors.textMuted} size={20} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.infoText}>{profile.phone || 'Add your phone'}</Text>
-                  {profile.phone && (
-                    <View style={styles.contactActions}>
-                      <TouchableOpacity style={styles.contactChip} onPress={handleCall}>
-                        <Text style={styles.contactChipText}>Call</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.contactChip} onPress={handleSms}>
-                        <Text style={styles.contactChipText}>Message</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.contactChip} onPress={handleWhatsApp}>
-                        <Text style={styles.contactChipText}>WhatsApp</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
+                {[<Phone key="icon" color={colors.textMuted} size={20} />, (
+                  <View key="value" style={{ flex: 1 }}>
+                    <Text style={styles.infoText}>{profile.phone || 'Add your phone'}</Text>
+                    {profile.phone && (
+                      <View style={styles.contactActions}>
+                        <TouchableOpacity style={styles.contactChip} onPress={handleCall}>
+                          <Text style={styles.contactChipText}>Call</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.contactChip} onPress={handleSms}>
+                          <Text style={styles.contactChipText}>Message</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.contactChip} onPress={handleWhatsApp}>
+                          <Text style={styles.contactChipText}>WhatsApp</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                )]}
               </View>
               <View style={styles.infoRow}>
-                <MapPin color={colors.textMuted} size={20} />
-                <Text style={styles.infoText}>{profile.address || 'Add your address'}</Text>
+                {[<MapPin key="icon" color={colors.textMuted} size={20} />, (
+                  <Text key="value" style={styles.infoText}>
+                    {profile.address || 'Add your address'}
+                  </Text>
+                )]}
               </View>
             </View>
 
@@ -385,14 +392,21 @@ export default function ProfileScreen() {
         {/* Sign Out */}
         {!editing && (
           <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
-            <LogOut color={colors.primary} size={20} />
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <View style={styles.buttonContent}>
+              <LogOut color={colors.primary} size={20} />
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </View>
           </TouchableOpacity>
         )}
         {!editing && (
-          <TouchableOpacity style={[styles.signOutButton, { borderColor: colors.accent, marginTop: 12 }]} onPress={switchRole}>
-            <Shuffle color={colors.accent} size={20} />
-            <Text style={[styles.signOutText, { color: colors.accent }]}>Switch to {activeRole === 'fur_boss' ? 'Pet Watcher' : 'Pet Boss'}</Text>
+          <TouchableOpacity
+            style={[styles.signOutButton, { borderColor: colors.accent, marginTop: 12 }]}
+            onPress={switchRole}
+          >
+            <View style={styles.buttonContent}>
+              <Shuffle color={colors.accent} size={20} />
+              <Text style={[styles.signOutText, { color: colors.accent }]}>Switch to {activeRole === 'fur_boss' ? 'Pet Watcher' : 'Pet Boss'}</Text>
+            </View>
           </TouchableOpacity>
         )}
       </View>
@@ -451,7 +465,8 @@ const styles = StyleSheet.create({
   saveButton: { flex: 1, height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primary, gap: 8 },
   saveButtonText: { fontSize: 16, fontWeight: '600', color: '#fff' },
   buttonDisabled: { opacity: 0.5 },
-  signOutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 56, borderRadius: 16, borderWidth: 2, borderColor: colors.primary, gap: 8, marginTop: 24 },
+  signOutButton: { marginTop: 24, borderWidth: 2, borderColor: colors.border, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  buttonContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   signOutText: { fontSize: 16, fontWeight: '600', color: colors.primary },
   addButton: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
   addButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },

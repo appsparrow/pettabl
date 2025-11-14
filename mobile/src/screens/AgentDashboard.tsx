@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, Star } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
@@ -297,7 +297,10 @@ const styles = StyleSheet.create({
   },
   pointsLabel: { fontSize: 12, color: '#fff', opacity: 0.85 },
   pointsValue: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  petWatchSection: { paddingHorizontal: 24, paddingTop: 24 },
+  petWatchSection: {
+    paddingTop: 24,
+    paddingHorizontal: Platform.select({ web: 16, default: 24 }),
+  },
   refreshBanner: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -126,7 +126,7 @@ export function EditPetModal({ visible, onClose, pet, onSaved }: Props) {
                 </TouchableOpacity>
 
                 <Text style={styles.label}>Pet Name</Text>
-                <TextInput placeholder="Eg. Charlie" value={name} onChangeText={setName} style={styles.input} />
+                <TextInput placeholder="Eg. Zach" value={name} onChangeText={setName} style={styles.input} />
                 <Text style={styles.label}>Pet Type</Text>
                 <View style={styles.typeRow}>
                   {PET_TYPES.map((t) => (

@@ -1,243 +1,136 @@
-# Cloudflare Pages Deployment Guide
+# Cloudflare Pages Deployment Guide (Expo Web Build)
 
 ## Overview
 
-DingDongDog consists of:
-- **Web App** (React + Vite) - Deploy to Cloudflare Pages
-- **Mobile App** (Expo/React Native) - Deploy via Expo/App Stores
-
-This guide covers deploying the web app to Cloudflare Pages.
+Pettabl now deploys the Expo-based web experience (identical to the app running at port **8083**) to Cloudflare Pages. The legacy Vite marketing build is no longer used for production.
 
 ---
 
 ## Prerequisites
 
-1. **Cloudflare Account**: Sign up at https://dash.cloudflare.com/sign-up
-2. **GitHub Repository**: Your code pushed to GitHub
-3. **Supabase Project**: Remote Supabase instance configured
-4. **R2 Storage** (Optional): Cloudflare R2 for image uploads
+1. **Cloudflare account** with Pages access.
+2. **GitHub repository** containing the latest Pettabl code.
+3. **Supabase project** with production keys (`EXPO_PUBLIC_SUPABASE_*`).
+4. **Node 18+** locally for testing (`npm` ships with it).
 
 ---
 
-## Step 1: Prepare for Deployment
+## Step 1 — Prepare the Expo Web Build
 
-### 1.1 Install Dependencies (if not done)
+All commands run inside the `mobile/` directory.
 
 ```bash
-cd /Users/siva/Documents/GitHub/pettabl
+cd /Users/siva/Documents/GitHub/pettabl/mobile
 npm install
 ```
 
-> ⚠️ **Important:** Delete any `bun.lockb` file before deploying. If it exists, Cloudflare Pages will default to `bun install --frozen-lockfile` and the build will fail with `lockfile had changes, but lockfile is frozen`. Run `git rm bun.lockb` (and add it to `.gitignore`) so Cloudflare uses `npm install` instead.
+> ℹ️ Run `npm install` whenever dependencies change. Cloudflare will do the same during each deployment.
 
-### 1.2 Test Local Build
+### 1.1 Environment Variables
 
-```bash
-npm run build
-```
+Ensure `mobile/.env` contains production values:
 
-Ensure build completes without errors.
-
-### 1.3 Verify Environment Variables
-
-Make sure your `.env.local` contains:
 ```env
-VITE_SUPABASE_URL=https://cxnvsqkeifgbjzrelytl.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+EXPO_PUBLIC_SUPABASE_URL=https://cxnvsqkeifgbjzrelytl.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 
-VITE_R2_ACCOUNT_ID=your-account-id
-VITE_R2_ACCESS_KEY_ID=your-access-key
-VITE_R2_SECRET_ACCESS_KEY=your-secret-key
-VITE_R2_BUCKET_NAME=your-bucket-name
-VITE_R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
-VITE_R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
+# Optional R2 config
+EXPO_PUBLIC_R2_ACCOUNT_ID=<id>
+EXPO_PUBLIC_R2_ACCESS_KEY_ID=<key>
+EXPO_PUBLIC_R2_SECRET_ACCESS_KEY=<secret>
+EXPO_PUBLIC_R2_BUCKET_NAME=<bucket>
+EXPO_PUBLIC_R2_PUBLIC_URL=https://pub-xxxxx.r2.dev
+EXPO_PUBLIC_R2_ENDPOINT=https://<id>.r2.cloudflarestorage.com
 ```
+
+The `EXPO_PUBLIC_*` prefix is required so values are embedded in the web export.
+
+### 1.2 Local Web Export (sanity check)
+
+```bash
+npx expo export --platform web --output-dir dist-web --clear
+npx serve dist-web   # optional: preview locally
+```
+
+Confirm the build renders the web dashboard exactly like the 8083 dev server.
 
 ---
 
-## Step 2: Push to GitHub
+## Step 2 — Push Changes to GitHub
+
+Commit your work (including any updated docs/landing page copy):
 
 ```bash
+cd /Users/siva/Documents/GitHub/pettabl
 git add .
-git commit -m "Ready for Cloudflare Pages deployment"
+git commit -m "prep expo web deployment"
 git push origin main
 ```
 
 ---
 
-## Step 3: Create Cloudflare Pages Project
+## Step 3 — Configure Cloudflare Pages
 
-### 3.1 Connect GitHub
+### 3.1 Create/Update Pages Project
 
-1. Go to https://dash.cloudflare.com
-2. Click "Workers & Pages" in the sidebar
-3. Click "Create application" → "Pages" tab
-4. Click "Connect to Git"
-5. Authorize Cloudflare to access your GitHub
-6. Select `pettabl` repository
+1. Visit <https://dash.cloudflare.com> → **Workers & Pages**.
+2. Create a new Pages project (or edit existing) connected to the `pettabl` repo.
+3. Under **Build settings**, set:
+   - **Framework preset:** Other
+   - **Root directory:** `mobile`
+   - **Build command:** `npx expo export --platform web --output-dir dist --clear`
+   - **Build output directory:** `dist`
+4. Under **Environment Variables**, add the same `EXPO_PUBLIC_*` values as in `mobile/.env`.
 
-### 3.2 Configure Build Settings
+> ✅ Cloudflare will install dependencies via `npm install` (no `bun.lockb` file should exist—already ignored).
 
-**Framework preset**: `Vite`
+### 3.2 Trigger Deployment
 
-**Build settings**:
-- Build command: `npm run build`
-- Build output directory: `dist`
-- Root directory: `/` (leave empty or use `/`)
+Click **Save and Deploy**. The Expo export typically finishes within 3–5 minutes. The output hosts the same UI served locally at `http://localhost:8083`.
 
-**Environment variables** (Click "Add variable"):
+---
+
+## Step 4 — Optional Custom Domain
+
+1. In the Pages project, open **Custom domains**.
+2. Add `pettabl.com` or the desired subdomain.
+3. Follow the DNS instructions; SSL is provisioned automatically.
+
+---
+
+## Step 5 — Supabase Auth Redirects
+
+Update Supabase → **Authentication → URL Configuration** to include the final domain:
+
 ```
-VITE_SUPABASE_URL = https://cxnvsqkeifgbjzrelytl.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY = <your-anon-key>
-
-VITE_R2_ACCOUNT_ID = <your-r2-account-id>
-VITE_R2_ACCESS_KEY_ID = <your-r2-access-key>
-VITE_R2_SECRET_ACCESS_KEY = <your-r2-secret-key>
-VITE_R2_BUCKET_NAME = R2-Pettabl
-VITE_R2_PUBLIC_URL = <your-r2-public-url>
-VITE_R2_ENDPOINT = <your-r2-endpoint>
-```
-
-### 3.3 Deploy
-
-1. Click "Save and Deploy"
-2. Cloudflare will build and deploy your app
-3. Wait 2-5 minutes for first deployment
-4. You'll get a URL like: `https://pettabl.pages.dev`
-
----
-
-## Step 4: Configure Custom Domain (Optional)
-
-### 4.1 Add Custom Domain
-
-1. In Cloudflare Pages project → "Custom domains"
-2. Click "Set up a custom domain"
-3. Enter your domain: `dingdongdog.com` or `app.dingdongdog.com`
-4. Follow DNS instructions
-
-### 4.2 SSL Certificate
-
-Cloudflare automatically provisions SSL certificates (HTTPS).
-
----
-
-## Step 5: Update Supabase Redirect URLs
-
-1. Go to Supabase Dashboard → **Authentication** → **URL Configuration**
-2. Add your production URL to **Redirect URLs**:
-   ```
-   https://pettabl.pages.dev/*
-   https://dingdongdog.com/*
-   ```
-
-3. Update **Site URL**:
-   ```
-   https://pettabl.pages.dev
-   ```
-
----
-
-## Step 6: Update Google OAuth (if using)
-
-1. Go to Google Cloud Console → Credentials
-2. Edit your OAuth 2.0 Client ID
-3. Add to **Authorized redirect URIs**:
-   ```
-   https://cxnvsqkeifgbjzrelytl.supabase.co/auth/v1/callback
-   ```
-4. Save
-
----
-
-## Step 7: Test Deployment
-
-1. Visit your Cloudflare Pages URL
-2. Test sign up / sign in
-3. Test Google OAuth
-4. Create a pet and session
-5. Upload a photo (test R2)
-
----
-
-## Automatic Deployments
-
-Cloudflare Pages automatically redeploys when you push to `main`:
-
-```bash
-git add .
-git commit -m "Update feature X"
-git push origin main
+https://pettabl.pages.dev/*
+https://pettabl.com/*
 ```
 
-Monitor deployments at: https://dash.cloudflare.com → Your Project → Deployments
+Set **Site URL** to the production domain as well. OAuth (Google) should continue using `https://cxnvsqkeifgbjzrelytl.supabase.co/auth/v1/callback`.
+
+---
+
+## Step 6 — Validation Checklist
+
+- [ ] Cloudflare deployment status is `Success`.
+- [ ] Landing page displays "Coming Soon" badges for iOS/Android.
+- [ ] Pet Boss / Pet Watcher flows work end-to-end (create pet, create watch, switch roles).
+- [ ] Uploading activity photos stores/retrieves media correctly.
+
+If any front-end issues appear, rebuild locally with `npx expo start --web` (port 8083) to reproduce before redeploying.
 
 ---
 
 ## Troubleshooting
 
-### Build Fails
-
-**Error**: `vite: command not found`
-- **Fix**: Ensure `package.json` has `"vite"` in `devDependencies`
-
-**Error**: Module not found
-- **Fix**: Run `npm install` locally, commit `package-lock.json`
-
-### Environment Variables Not Working
-
-- Double-check variable names start with `VITE_`
-- Redeploy after changing env vars
-- Clear Cloudflare cache: Pages Settings → Functions → Purge cache
-
-### OAuth Redirect Issues
-
-- Verify redirect URLs match exactly in Google Console and Supabase
-- Check browser console for errors
-- Ensure Supabase site URL is production URL
+| Issue | Fix |
+|-------|-----|
+| Build fails: `expo` not found | Ensure `npm install` executed in `mobile/` and package-lock is committed. |
+| Missing env vars at runtime | Double-check Cloudflare project settings → Environment variables (must start with `EXPO_PUBLIC_`). |
+| Old Vite site still served | Verify Pages project root is `mobile` and redeploy; purge CDN cache if necessary. |
 
 ---
 
-## Performance Optimization
-
-### Enable Caching
-
-Cloudflare Pages automatically caches static assets. No action needed.
-
-### Preview Deployments
-
-Every pull request gets a unique preview URL. Great for testing!
-
----
-
-## Rollback
-
-If a deployment breaks:
-
-1. Go to Cloudflare Pages → Deployments
-2. Find a working deployment
-3. Click "..." → "Rollback to this deployment"
-
----
-
-## Cost
-
-- **Cloudflare Pages**: Free tier includes unlimited requests
-- **Supabase**: Free tier includes 500MB database + 50K monthly active users
-- **R2**: First 10GB storage free, then $0.015/GB/month
-
----
-
-## Next Steps
-
-- ✅ Web app deployed to Cloudflare Pages
-- 📱 Deploy mobile app (see `MOBILE-DEPLOYMENT.md`)
-- 🚀 Set up analytics (Cloudflare Web Analytics)
-- 📧 Configure email templates in Supabase
-
----
-
-**Need Help?**
-- Cloudflare Pages Docs: https://developers.cloudflare.com/pages/
-- Supabase Docs: https://supabase.com/docs
+The Cloudflare Pages deployment now mirrors the Expo web build you view on port **8083** during development.
 

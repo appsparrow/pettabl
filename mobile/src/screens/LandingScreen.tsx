@@ -176,11 +176,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 16,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 18px 36px rgba(241, 36, 138, 0.25)' }
+      : {
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 4,
+        }),
   },
   primaryButtonText: {
     color: '#fff',
@@ -208,18 +212,22 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   featureCard: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.cardBg,
     borderRadius: 24,
     padding: 24,
     width: Platform.OS === 'web' ? 350 : '100%',
     maxWidth: 400,
     borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 16px 32px rgba(15, 23, 42, 0.12)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 3,
+        }),
   },
   featureIcon: {
     width: 64,
@@ -266,11 +274,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     paddingVertical: 16,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+    ...(Platform.OS === 'web'
+      ? { boxShadow: '0px 20px 40px rgba(59, 130, 246, 0.35)' }
+      : {
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 12,
+          elevation: 6,
+        }),
   },
   ctaButtonText: {
     color: '#fff',
@@ -281,7 +293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     paddingHorizontal: 20,
     alignItems: 'center',
-    backgroundColor: `${colors.muted}30`,
+    backgroundColor: 'rgba(226, 232, 240, 0.35)',
   },
   footerLogo: {
     width: 180,

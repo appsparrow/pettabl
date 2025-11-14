@@ -350,7 +350,7 @@ export default function PetDetailScreen({ route, navigation }: any) {
                   style={styles.input}
                   value={form.name}
                   onChangeText={(name) => setForm((prev) => ({ ...prev, name }))}
-                  placeholder="Eg. Charlie"
+                  placeholder="Eg. Zach"
                 />
 
                 <Text style={styles.inputLabel}>Pet Type</Text>

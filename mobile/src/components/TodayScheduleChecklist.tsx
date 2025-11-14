@@ -188,17 +188,7 @@ export function TodayScheduleChecklist({
                             ]}>
                               {getActivityLabel(item.activity_type)}
                             </Text>
-                            {specificInstruction ? (
-                              <Text
-                                style={[
-                                  styles.instructionText,
-                                  completed && styles.instructionTextCompleted
-                                ]}
-                                numberOfLines={3}
-                              >
-                                {specificInstruction}
-                              </Text>
-                            ) : null}
+                            {/* Instructions are shown in the header card; omit here to prevent duplication */}
                             {completed && activity && (
                               <View style={styles.completedInfo}>
                                 <Text style={styles.completedText}>
@@ -361,9 +351,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 4,
     lineHeight: 16,
-  },
-  instructionTextCompleted: {
-    color: '#047857',
   },
   completedInfo: {
     flexDirection: 'row',
