@@ -399,6 +399,7 @@ function MainStack() {
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [initialRoute, setInitialRoute] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -413,6 +414,28 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Determine initial route based on URL path (web only)
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path === '/auth' || path.startsWith('/auth/')) {
+        setInitialRoute('Auth');
+      } else {
+        setInitialRoute('Landing');
+      }
+    }
+  }, []);
+
+  // Redirect authenticated users from / to /auth (web only)
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && session) {
+      const path = window.location.pathname;
+      if (path === '/' || path === '') {
+        window.history.replaceState({}, '', '/auth');
+      }
+    }
+  }, [session]);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -421,13 +444,33 @@ export default function App() {
     );
   }
 
+  // Web linking configuration
+  const linking = Platform.OS === 'web' ? {
+    prefixes: ['/'],
+    config: {
+      screens: {
+        Landing: '/',
+        Auth: '/auth',
+      },
+    },
+  } : undefined;
+
   const AppContent = () => {
+    // If on web and at /auth, show auth/app regardless of session
+    // If on web and at /, show landing page if no session
+    const isWeb = Platform.OS === 'web';
+    const isAuthRoute = isWeb && typeof window !== 'undefined' && 
+                        (window.location.pathname === '/auth' || window.location.pathname.startsWith('/auth/'));
+
     if (!session) {
       return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <NavigationContainer>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              {Platform.OS === 'web' ? (
+          <NavigationContainer linking={linking}>
+            <Stack.Navigator 
+              screenOptions={{ headerShown: false }}
+              initialRouteName={initialRoute}
+            >
+              {isWeb ? (
                 <>
                   <Stack.Screen name="Landing" component={LandingScreen} />
                   <Stack.Screen name="Auth">
@@ -445,12 +488,13 @@ export default function App() {
       );
     }
 
+
     return (
       <RoleProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <View style={[styles.appRoot, Platform.OS === 'web' && styles.webAppRoot]}>
             <View style={[styles.appContainer, Platform.OS === 'web' && styles.webAppContainer]}>
-              <NavigationContainer>
+              <NavigationContainer linking={linking}>
                 <MainStack />
               </NavigationContainer>
             </View>
