@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Income vs Contractor Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      max-width: 500px;
+    }
+    input {
+      padding: 8px;
+      width: 100%;
+      margin: 5px 0 15px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 5px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .box {
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 25px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Income & Contractor Calculator</h2>
+
+<div class="box">
+  <h3>1️⃣ Full-Time Employee Take-Home Estimate</h3>
+  <label>Annual Salary ($)</label>
+  <input id="salary" type="number" placeholder="Enter your salary e.g., 100000">
+  <button onclick="calcEmployee()">Calculate Take-Home</button>
+  <p id="empResult"></p>
+</div>
+
+<div class="box">
+  <h3>2️⃣ Contractor Hourly Rate → Annual Income</h3>
+  <label>Hourly Rate ($/hr)</label>
+  <input id="contractHourly" type="number" placeholder="e.g., 70">
+  <button onclick="calcContractAnnual()">Calculate Annual Income</button>
+  <p id="contractAnnualResult"></p>
+</div>
+
+<div class="box">
+  <h3>3️⃣ Annual Income → Required Contractor Hourly Rate</h3>
+  <label>Desired Annual Income ($)</label>
+  <input id="desiredAnnual" type="number" placeholder="e.g., 100000">
+  <button onclick="calcContractRate()">Calculate Hourly Rate</button>
+  <p id="contractRateResult"></p>
+</div>
+
+<div class="box">
+  <h3>4️⃣ Match Full-Time Take-Home as Contractor</h3>
+  <p style="font-size: 14px; color: #666; margin-bottom: 15px;">
+    Calculate contractor rate needed to match your full-time take-home, accounting for insurance, self-employment taxes, and benefits.
+  </p>
+  <label>Full-Time Annual Salary ($)</label>
+  <input id="matchSalary" type="number" placeholder="e.g., 100000">
+  <label>Monthly Health Insurance Cost ($) <span style="color: #666; font-size: 12px;">(optional, default: $500)</span></label>
+  <input id="healthInsurance" type="number" placeholder="500" value="500">
+  <label>Monthly Retirement Contribution ($) <span style="color: #666; font-size: 12px;">(optional, default: $500)</span></label>
+  <input id="retirement" type="number" placeholder="500" value="500">
+  <button onclick="calcMatchContractor()">Calculate Required Contractor Rate</button>
+  <p id="matchResult"></p>
+</div>
+
+<script>
+  // Simple take-home estimate ~70% after tax/benefits
+  function calcEmployee() {
+    const salary = parseFloat(document.getElementById('salary').value);
+    if (!salary) return;
+    const takeHome = salary * 0.70; // ~30% tax/benefit load
+    const monthly = takeHome / 12;
+    document.getElementById('empResult').innerHTML =
+      "Estimated Take-Home: <b>$" + takeHome.toLocaleString() + "</b> per year<br>" +
+      "Monthly Take-Home: <b>$" + monthly.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + "</b>";
+  }
+
+  // Contractor annual (2080 hours full-time)
+  function calcContractAnnual() {
+    const rate = parseFloat(document.getElementById('contractHourly').value);
+    if (!rate) return;
+    const annual = rate * 2080;
+    document.getElementById('contractAnnualResult').innerHTML =
+      "Equivalent Annual Income: <b>$" + annual.toLocaleString() + "</b>";
+  }
+
+  // Annual → hourly rate needed
+  function calcContractRate() {
+    const annual = parseFloat(document.getElementById('desiredAnnual').value);
+    if (!annual) return;
+    const rate = annual / 2080;
+    document.getElementById('contractRateResult').innerHTML =
+      "Required Contractor Rate: <b>$" + rate.toFixed(2) + "</b> per hour";
+  }
+
+  // Match full-time take-home as contractor
+  function calcMatchContractor() {
+    const salary = parseFloat(document.getElementById('matchSalary').value);
+    if (!salary) return;
+    
+    // Full-time employee take-home (70% after taxes/benefits)
+    const employeeTakeHome = salary * 0.70;
+    const employeeMonthly = employeeTakeHome / 12;
+    
+    // Contractor expenses
+    const healthInsurance = parseFloat(document.getElementById('healthInsurance').value) || 500;
+    const retirement = parseFloat(document.getElementById('retirement').value) || 500;
+    const monthlyExpenses = healthInsurance + retirement;
+    const annualExpenses = monthlyExpenses * 12;
+    
+    // Contractor needs to cover:
+    // 1. Same take-home as employee
+    // 2. Higher self-employment tax (~15.3% vs ~7.65% split)
+    // 3. Health insurance and retirement
+    // 4. No paid time off (assume 10 days = ~80 hours)
+    // 5. Business expenses buffer (~5%)
+    
+    // Gross income needed = (take-home + expenses) / (1 - tax_rate)
+    // Contractors pay ~25-30% in taxes (vs ~20-25% for employees)
+    // Using 28% effective tax rate for contractors
+    const grossNeeded = (employeeTakeHome + annualExpenses) / 0.72;
+    
+    // Account for unpaid time off (2080 - 80 = 2000 billable hours)
+    // Plus 5% buffer for business expenses
+    const billableHours = 2000;
+    const rateNeeded = (grossNeeded * 1.05) / billableHours;
+    
+    // Monthly contractor income at this rate
+    const contractorMonthlyGross = (rateNeeded * billableHours) / 12;
+    const contractorMonthlyAfterTax = contractorMonthlyGross * 0.72;
+    const contractorMonthlyTakeHome = contractorMonthlyAfterTax - monthlyExpenses;
+    
+    document.getElementById('matchResult').innerHTML =
+      "<strong>Full-Time Employee:</strong><br>" +
+      "• Annual Take-Home: <b>$" + employeeTakeHome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + "</b><br>" +
+      "• Monthly Take-Home: <b>$" + employeeMonthly.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + "</b><br><br>" +
+      "<strong>Contractor Rate Needed:</strong><br>" +
+      "• Required Hourly Rate: <b>$" + rateNeeded.toFixed(2) + "/hr</b><br>" +
+      "• Annual Gross Income: <b>$" + (rateNeeded * billableHours).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + "</b><br>" +
+      "• Monthly Take-Home (after taxes & expenses): <b>$" + contractorMonthlyTakeHome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + "</b><br><br>" +
+      "<span style='color: #666; font-size: 12px;'>Note: Assumes 2000 billable hours/year (accounting for unpaid time off) and 28% effective tax rate for contractors.</span>";
+  }
+</script>
+
+</body>
+</html>
